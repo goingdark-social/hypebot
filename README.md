@@ -60,11 +60,24 @@ subscribed_instances:
 # Filter posts from specific instances
 filtered_instances:
   - example.com
+
+daily_public_cap: 24
+per_hour_public_cap: 1
+rotate_instances: true
+require_media: true
+skip_sensitive_without_cw: true
+languages_allowlist:
+  - en
+  - sv
+state_path: "/app/secrets/state.json"
 ```
 
 ## Features
 
 - Boost trending posts from other Mastodon instances
 - Update bot profile with list of subscribed instances
+- Rotate through subscribed instances
+- Enforce hourly and daily caps on public boosts
+- Skip reposts and filter posts without media or missing content warnings
 
 ---
