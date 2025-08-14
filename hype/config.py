@@ -1,5 +1,6 @@
 import logging
 from typing import List
+from datetime import timezone
 
 import yaml
 
@@ -30,12 +31,19 @@ class Instance:
 
 class Config:
     bot_account: BotAccount
-    interval: int = 60  # minutes
+    interval: int = 60
     log_level: str = "INFO"
     subscribed_instances: List = []
     filtered_instances: List = []
     profile_prefix: str = ""
     fields: dict = {}
+    daily_public_cap: int = 24
+    per_hour_public_cap: int = 1
+    rotate_instances: bool = True
+    require_media: bool = True
+    skip_sensitive_without_cw: bool = True
+    languages_allowlist: list = []
+    state_path: str = "/app/secrets/state.json"
 
     def __init__(self):
         # auth file containing login info
@@ -100,6 +108,28 @@ class Config:
                     if config.get("filtered_instances")
                     else []
                 )
+
+                self.daily_public_cap = int(
+                    config.get("daily_public_cap", self.daily_public_cap)
+                )
+                self.per_hour_public_cap = int(
+                    config.get("per_hour_public_cap", self.per_hour_public_cap)
+                )
+                self.rotate_instances = bool(
+                    config.get("rotate_instances", self.rotate_instances)
+                )
+                self.require_media = bool(
+                    config.get("require_media", self.require_media)
+                )
+                self.skip_sensitive_without_cw = bool(
+                    config.get(
+                        "skip_sensitive_without_cw", self.skip_sensitive_without_cw
+                    )
+                )
+                self.languages_allowlist = config.get(
+                    "languages_allowlist", self.languages_allowlist
+                ) or []
+                self.state_path = config.get("state_path", self.state_path)
 
 
 class ConfigException(Exception):
