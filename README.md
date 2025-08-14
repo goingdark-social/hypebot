@@ -16,10 +16,11 @@ Deploy with docker-compose
 version: "3"
 services:
   hype:
-    image: valentinriess/hype:latest
+    image: ghcr.io/goingdark-social/hypebot:v0.1.0
     volumes:
       - ./config:/app/config
 ```
+Replace `v0.1.0` with the release you want to run.
 
 ## Configuration
 
