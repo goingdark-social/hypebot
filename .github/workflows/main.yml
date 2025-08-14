@@ -1,4 +1,4 @@
-name: Build and push Docker images
+name: Build and push Docker images to GHCR
 on:
   push:
     branches:
@@ -6,50 +6,41 @@ on:
       - develop
 
 jobs:
-  build-and-push-docker-image:
-    name: Build Docker image and push to repositories
+  build-and-push-ghcr-image:
+    name: Build Docker image and push to GHCR
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Login to DockerHub
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build image and push to Docker Hub and GitHub Container Registry
+      - name: Build and push image (develop branch)
+        if: ${{ github.ref_name == 'develop' }}
         uses: docker/build-push-action@v3
-        id: docker_build
-        if: ${{ github.ref_name != 'main' }}
         with:
-          # relative path to the place where source code with Dockerfile is located
           context: .
-          # Note: tags has to be all lower-case
-          tags: |
-            valentinriess/hype:${{ github.ref_name }}
-          # build on feature branches, push only on develop branch
-          push: ${{ github.ref == 'refs/heads/develop' }}
+          tags: ghcr.io/${{ github.repository_owner }}/hypebot:develop
+          push: true
 
-      - name: Image digest
-        if: ${{ steps.docker_build.outcome == 'success' }}
-        run: echo ${{ steps.docker_build.outputs.digest }}
-
-      - name: Build image and push to Docker Hub and GitHub Container Registry
-        uses: docker/build-push-action@v2
-        id: docker_build_main
+      - name: Build and push image (main branch)
         if: ${{ github.ref_name == 'main' }}
+        uses: docker/build-push-action@v3
         with:
-          # relative path to the place where source code with Dockerfile is located
           context: .
-          # Note: tags has to be all lower-case
-          tags: |
-            valentinriess/hype:latest
-          # build on feature branches, push only on develop branch
-          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: ghcr.io/${{ github.repository_owner }}/hypebot:latest
+          push: true
 
-      - name: Image digest
-        if: ${{ steps.docker_build_main.outcome == 'success' }}
-        run: echo ${{ steps.docker_build_main.outputs.digest }}
+      - name: Image digest (develop)
+        if: ${{ steps.build_and_push_develop.outcome == 'success' }}
+        run: echo ${{ steps.build_and_push_develop.outputs.digest }}
+
+      - name: Image digest (main)
+        if: ${{ steps.build_and_push_main.outcome == 'success' }}
+        run: echo ${{ steps.build_and_push_main.outputs.digest }}
