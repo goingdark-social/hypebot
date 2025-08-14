@@ -5,6 +5,11 @@ on:
       - main
       - develop
 
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
 jobs:
   build-and-push-ghcr-image:
     name: Build Docker image and push to GHCR
@@ -14,28 +19,30 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to GHCR
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build and push image (develop branch)
         if: ${{ github.ref_name == 'develop' }}
-        uses: docker/build-push-action@v3
+        id: build_and_push_develop
+        uses: docker/build-push-action@v6
         with:
           context: .
-          tags: ghcr.io/${{ github.repository_owner }}/hypebot:develop
           push: true
+          tags: ghcr.io/${{ github.repository_owner }}/hypebot:develop
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
       - name: Build and push image (main branch)
         if: ${{ github.ref_name == 'main' }}
-        uses: docker/build-push-action@v3
+        id: build_and_push_main
+        uses: docker/build-push-action@v6
         with:
           context: .
-          tags: ghcr.io/${{ github.repository_owner }}/hypebot:latest
           push: true
+          tags: ghcr.io/${{ github.repository_owner }}/hypebot:v0.1.0
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
       - name: Image digest (develop)
         if: ${{ steps.build_and_push_develop.outcome == 'success' }}
