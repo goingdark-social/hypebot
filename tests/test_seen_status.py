@@ -1,0 +1,62 @@
+import sys
+import types
+from pathlib import Path
+from unittest.mock import MagicMock
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from hype.hype import Hype
+
+
+class DummyConfig:
+    def __init__(self, path):
+        self.bot_account = types.SimpleNamespace(server="s", access_token="t")
+        self.log_level = "ERROR"
+        self.subscribed_instances = []
+        self.filtered_instances = []
+        self.profile_prefix = ""
+        self.fields = {}
+        self.daily_public_cap = 10
+        self.per_hour_public_cap = 10
+        self.rotate_instances = True
+        self.require_media = False
+        self.skip_sensitive_without_cw = False
+        self.languages_allowlist = []
+        self.state_path = path
+
+
+def status_data(i, u):
+    return {
+        "id": i,
+        "url": u,
+        "uri": u,
+        "reblogged": False,
+        "account": {"acct": "a@b"},
+        "media_attachments": [1],
+        "sensitive": False,
+        "spoiler_text": "",
+        "language": "en",
+    }
+
+
+def test_skips_duplicates_across_instances(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    hype = Hype(cfg)
+    client = MagicMock()
+    client.search_v2.side_effect = [
+        {"statuses": [status_data("1", "https://a/1")]},
+        {"statuses": [status_data("2", "https://a/1")]},
+    ]
+    hype.client = client
+    m1 = MagicMock()
+    m1.trending_statuses.return_value = [{"uri": "https://a/1"}]
+    m2 = MagicMock()
+    m2.trending_statuses.return_value = [{"uri": "https://a/1"}]
+    hype.init_client = MagicMock(side_effect=[m1, m2])
+    inst1 = types.SimpleNamespace(name="i1", limit=1)
+    inst2 = types.SimpleNamespace(name="i2", limit=1)
+    hype._boost_instance(inst1)
+    hype._boost_instance(inst2)
+    assert client.status_reblog.call_count == 1
+    assert list(hype._seen).count("https://a/1") == 1
+

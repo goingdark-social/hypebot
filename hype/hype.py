@@ -2,6 +2,7 @@ import json
 import logging
 import os.path
 import time
+from collections import deque
 from datetime import datetime, timezone
 
 import schedule
@@ -21,6 +22,7 @@ class Hype:
         self.log = logging.getLogger("hype")
         self.instance_index = 0
         self.state = self._load_state()
+        self._seen = deque(self.state.get("seen_status_ids", []), maxlen=6000)
         self.log.info("Config loaded")
 
     def login(self):
@@ -64,6 +66,7 @@ class Hype:
         }
 
     def _save_state(self):
+        self.state["seen_status_ids"] = list(self._seen)
         try:
             with open(self.config.state_path, "w") as handle:
                 json.dump(self.state, handle)
@@ -92,6 +95,18 @@ class Hype:
         self._tick_counters()
         self.state["day_count"] += 1
         self.state["hour_count"] += 1
+
+    def _seen_status(self, status: dict) -> bool:
+        sid = status["id"]
+        url = status.get("url") or status.get("uri")
+        return sid in self._seen or url in self._seen or status.get("reblogged")
+
+    def _remember_status(self, status: dict):
+        sid = status["id"]
+        url = status.get("url") or status.get("uri")
+        self._seen.append(sid)
+        if url:
+            self._seen.append(url)
 
     def _should_skip_status(self, status: dict) -> bool:
         if self.config.require_media and not status.get("media_attachments"):
@@ -144,8 +159,7 @@ class Hype:
                     self.log.info(f"{instance.name}: skip, not found")
                     continue
                 status = result[0]
-                sid = status["id"]
-                if sid in self.state["seen_status_ids"] or status.get("reblogged"):
+                if self._seen_status(status):
                     self.log.info(f"{instance.name}: already boosted, skip")
                     continue
                 acct = status["account"]["acct"].split("@")
@@ -163,9 +177,7 @@ class Hype:
                     break
                 self.client.status_reblog(status)
                 self._count_public_boost()
-                self.state["seen_status_ids"].append(sid)
-                if len(self.state["seen_status_ids"]) > 5000:
-                    self.state["seen_status_ids"] = self.state["seen_status_ids"][-3000:]
+                self._remember_status(status)
                 self._save_state()
                 processed += 1
                 self.log.info(f"{instance.name}: boosted {processed}/{total}")

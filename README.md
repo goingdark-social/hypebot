@@ -78,7 +78,9 @@ state_path: "/app/secrets/state.json"
 - Boost trending posts from other Mastodon instances
 - Update bot profile with list of subscribed instances
 - Rotate through subscribed instances
+- Skip duplicates across instances by tracking canonical URLs
 - Enforce hourly and daily caps on public boosts
 - Skip reposts and filter posts without media or missing content warnings
 
 ---
+
