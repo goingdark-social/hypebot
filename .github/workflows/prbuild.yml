@@ -1,0 +1,75 @@
+name: PR build and smoke test
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Build image locally for testing
+      - name: Build hypebot image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: hypebot:pr-${{ github.event.pull_request.number }}
+
+      # Create auth.yaml and config.yaml with sample minimal values
+      - name: Write sample config files
+        run: |
+          mkdir config
+          cat > config/auth.yaml <<EOF
+          bot_account:
+            server: "mastodon.example.com"
+            access_token: "fake-access-token"
+          EOF
+
+          cat > config/config.yaml <<EOF
+          interval: 60
+          profile_prefix: "I am boosting trending posts from:"
+          fields:
+            code: https://github.com/goingdark-social/hypebot
+            operator: "test"
+          subscribed_instances:
+            chaos.social:
+              limit: 1
+          filtered_instances:
+            - example.com
+          daily_public_cap: 1
+          per_hour_public_cap: 1
+          rotate_instances: false
+          require_media: false
+          skip_sensitive_without_cw: false
+          languages_allowlist:
+            - en
+          state_path: "/app/secrets/state.json"
+          EOF
+
+      # Run the container with the sample configs mounted
+      - name: Run hypebot container (smoke test)
+        run: |
+          set -o pipefail
+          output="$(docker run --rm -v $PWD/config:/app/config hypebot:pr-${{ github.event.pull_request.number }} 2>&1 | tee /dev/stdout)"
+          echo "$output"
+          # Adjust this grep for the expected log line indicating successful startup
+          echo "$output" | grep -iE "Started|Running|INFO" # You may need to tune this for hypebot's actual log output
+
+      - name: Summarize
+        if: always()
+        run: |
+          echo 'Smoke test log:' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          docker images | head -n 5 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
