@@ -67,11 +67,15 @@ per_hour_public_cap: 1
 rotate_instances: true
 require_media: true
 skip_sensitive_without_cw: true
+min_reblogs: 0
+min_favourites: 0
 languages_allowlist:
   - en
   - sv
 state_path: "/app/secrets/state.json"
 ```
+
+`min_reblogs` and `min_favourites` let you ignore posts that haven't gained enough traction yet.
 
 ## Features
 
@@ -80,5 +84,6 @@ state_path: "/app/secrets/state.json"
 - Rotate through subscribed instances
 - Enforce hourly and daily caps on public boosts
 - Skip reposts and filter posts without media or missing content warnings
+- Skip posts with too few reblogs or favourites
 
 ---

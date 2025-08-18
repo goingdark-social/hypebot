@@ -106,6 +106,10 @@ class Hype:
             lang = (status.get("language") or "").lower()
             if lang not in self.config.languages_allowlist:
                 return True
+        if status.get("reblogs_count", 0) < self.config.min_reblogs:
+            return True
+        if status.get("favourites_count", 0) < self.config.min_favourites:
+            return True
         return False
 
     def boost(self):

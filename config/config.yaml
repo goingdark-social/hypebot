@@ -32,6 +32,8 @@ per_hour_public_cap: 1
 rotate_instances: true
 require_media: true
 skip_sensitive_without_cw: true
+min_reblogs: 0
+min_favourites: 0
 languages_allowlist:
   - en
   - sv

@@ -42,6 +42,8 @@ class Config:
     rotate_instances: bool = True
     require_media: bool = True
     skip_sensitive_without_cw: bool = True
+    min_reblogs: int = 0
+    min_favourites: int = 0
     languages_allowlist: list = []
     state_path: str = "/app/secrets/state.json"
 
@@ -125,6 +127,12 @@ class Config:
                     config.get(
                         "skip_sensitive_without_cw", self.skip_sensitive_without_cw
                     )
+                )
+                self.min_reblogs = int(
+                    config.get("min_reblogs", self.min_reblogs)
+                )
+                self.min_favourites = int(
+                    config.get("min_favourites", self.min_favourites)
                 )
                 self.languages_allowlist = config.get(
                     "languages_allowlist", self.languages_allowlist
