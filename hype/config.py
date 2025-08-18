@@ -1,6 +1,5 @@
 import logging
 from typing import List
-from datetime import timezone
 
 import yaml
 
@@ -43,6 +42,7 @@ class Config:
     require_media: bool = True
     skip_sensitive_without_cw: bool = True
     languages_allowlist: list = []
+    max_post_age_minutes: int = 1440
     state_path: str = "/app/secrets/state.json"
 
     def __init__(self):
@@ -129,6 +129,9 @@ class Config:
                 self.languages_allowlist = config.get(
                     "languages_allowlist", self.languages_allowlist
                 ) or []
+                self.max_post_age_minutes = int(
+                    config.get("max_post_age_minutes", self.max_post_age_minutes)
+                )
                 self.state_path = config.get("state_path", self.state_path)
 
 

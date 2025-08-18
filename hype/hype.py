@@ -106,6 +106,14 @@ class Hype:
             lang = (status.get("language") or "").lower()
             if lang not in self.config.languages_allowlist:
                 return True
+        created_at_str = status.get("created_at")
+        if created_at_str:
+            created_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+            age_minutes = (
+                datetime.now(timezone.utc) - created_at
+            ).total_seconds() / 60
+            if age_minutes > self.config.max_post_age_minutes:
+                return True
         return False
 
     def boost(self):

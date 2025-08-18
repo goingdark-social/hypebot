@@ -32,6 +32,7 @@ per_hour_public_cap: 1
 rotate_instances: true
 require_media: true
 skip_sensitive_without_cw: true
+max_post_age_minutes: 1440
 languages_allowlist:
   - en
   - sv
