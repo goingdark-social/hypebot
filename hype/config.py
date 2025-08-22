@@ -1,6 +1,5 @@
 import logging
 from typing import List
-from datetime import timezone
 
 import yaml
 
@@ -46,6 +45,7 @@ class Config:
     min_favourites: int = 0
     languages_allowlist: list = []
     state_path: str = "/app/secrets/state.json"
+    seen_cache_size: int = 6000
 
     def __init__(self):
         # auth file containing login info
@@ -138,6 +138,9 @@ class Config:
                     "languages_allowlist", self.languages_allowlist
                 ) or []
                 self.state_path = config.get("state_path", self.state_path)
+                self.seen_cache_size = int(
+                    config.get("seen_cache_size", self.seen_cache_size)
+                )
 
 
 class ConfigException(Exception):
