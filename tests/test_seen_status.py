@@ -21,6 +21,8 @@ class DummyConfig:
         self.rotate_instances = True
         self.require_media = False
         self.skip_sensitive_without_cw = False
+        self.min_reblogs = 0
+        self.min_favourites = 0
         self.languages_allowlist = []
         self.state_path = path
 

@@ -37,7 +37,7 @@ class Config:
     filtered_instances: List = []
     profile_prefix: str = ""
     fields: dict = {}
-    daily_public_cap: int = 24
+    daily_public_cap: int = 48
     per_hour_public_cap: int = 1
     rotate_instances: bool = True
     require_media: bool = True

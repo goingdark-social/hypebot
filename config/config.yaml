@@ -27,7 +27,7 @@ subscribed_instances:
 filtered_instances:
   - example.com
 
-daily_public_cap: 24
+daily_public_cap: 48
 per_hour_public_cap: 1
 rotate_instances: true
 require_media: true
