@@ -38,3 +38,5 @@ languages_allowlist:
   - en
   - sv
 state_path: "/app/secrets/state.json"
+# Number of posts to remember for duplicate detection
+seen_cache_size: 6000

@@ -25,6 +25,7 @@ class DummyConfig:
         self.min_favourites = 0
         self.languages_allowlist = []
         self.state_path = path
+        self.seen_cache_size = 6000
 
 
 def status_data(i, u):
@@ -61,4 +62,13 @@ def test_skips_duplicates_across_instances(tmp_path):
     hype._boost_instance(inst2)
     assert client.status_reblog.call_count == 1
     assert list(hype._seen).count("https://a/1") == 1
+
+
+def test_seen_cache_respects_size(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    cfg.seen_cache_size = 2
+    hype = Hype(cfg)
+    hype._remember_status(status_data("1", "https://a/1"))
+    hype._remember_status(status_data("2", "https://a/2"))
+    assert list(hype._seen) == ["2", "https://a/2"]
 

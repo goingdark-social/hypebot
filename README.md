@@ -73,16 +73,18 @@ languages_allowlist:
   - en
   - sv
 state_path: "/app/secrets/state.json"
+seen_cache_size: 6000
 ```
 
 `min_reblogs` and `min_favourites` let you ignore posts that haven't gained enough traction yet.
+`seen_cache_size` limits how many posts the bot remembers to avoid boosting duplicates.
 
 ## Features
 
 - Boost trending posts from other Mastodon instances
 - Update bot profile with list of subscribed instances
 - Rotate through subscribed instances
-- Skip duplicates across instances by tracking canonical URLs
+- Skip duplicates across instances by tracking canonical URLs with a configurable cache
 - Enforce hourly and daily caps on public boosts
 - Skip reposts and filter posts without media or missing content warnings
 - Skip posts with too few reblogs or favourites

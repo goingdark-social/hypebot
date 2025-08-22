@@ -22,7 +22,10 @@ class Hype:
         self.log = logging.getLogger("hype")
         self.instance_index = 0
         self.state = self._load_state()
-        self._seen = deque(self.state.get("seen_status_ids", []), maxlen=6000)
+        self._seen = deque(
+            self.state.get("seen_status_ids", []),
+            maxlen=self.config.seen_cache_size,
+        )
         self.log.info("Config loaded")
 
     def login(self):
