@@ -20,7 +20,6 @@ class Hype:
             datefmt="%Y-%m-%d %H:%M:%S",
         )
         self.log = logging.getLogger("hype")
-        self.instance_index = 0
         self.state = self._load_state()
         self._seen = deque(
             self.state.get("seen_status_ids", []),
@@ -47,7 +46,6 @@ class Hype:
         self.client.account_update_credentials(
             note=note, bot=True, discoverable=True, fields=fields
         )
-        self.state["last_instance_index"] = self.instance_index
         self._save_state()
 
     def _load_state(self):
@@ -61,7 +59,6 @@ class Hype:
             pass
         return {
             "seen_status_ids": [],
-            "last_instance_index": 0,
             "day": "",
             "day_count": 0,
             "hour": "",
@@ -135,72 +132,62 @@ class Hype:
         if not self.config.subscribed_instances:
             self.log.warning("No subscribed instances configured.")
             return
-        instances = self.config.subscribed_instances
-        if self.config.rotate_instances:
-            self.instance_index = self.state.get("last_instance_index", 0) % len(
-                instances
-            )
-            target = instances[self.instance_index]
-            self._boost_instance(target)
-            self.instance_index = (self.instance_index + 1) % len(instances)
-            self.state["last_instance_index"] = self.instance_index
-            self._save_state()
-        else:
-            for inst in instances:
-                self._boost_instance(inst)
-
-    def _boost_instance(self, instance):
-        try:
+        if not self._public_cap_available():
+            self.log.info("Public cap reached. Skipping boosting this cycle.")
+            return
+        collected = []
+        for inst in self.config.subscribed_instances:
+            collected.extend(self._fetch_trending_statuses(inst))
+        collected.sort(
+            key=lambda s: sum(
+                self.config.hashtag_scores.get(t.get("name", "").lower(), 0)
+                for t in s["status"].get("tags", [])
+            ),
+            reverse=True,
+        )
+        total = len(collected)
+        processed = 0
+        for entry in collected:
             if not self._public_cap_available():
-                self.log.info("Public cap reached. Skipping boosting this cycle.")
-                return
-            mastodon_client = self.init_client(instance.name)
-            trending_statuses = mastodon_client.trending_statuses()
-            trending_statuses = sorted(
-                trending_statuses,
-                key=lambda s: sum(
-                    self.config.hashtag_scores.get(t.get("name", "").lower(), 0)
-                    for t in s.get("tags", [])
-                ),
-                reverse=True,
-            )[: instance.limit]
-            total = len(trending_statuses)
-            processed = 0
-            for trending_status in trending_statuses:
-                result = self.client.search_v2(
-                    trending_status["uri"], result_type="statuses"
-                ).get("statuses", [])
-                if not result:
-                    self.log.info(f"{instance.name}: skip, not found")
-                    continue
-                status = result[0]
-                if self._seen_status(status):
-                    self.log.info(f"{instance.name}: already boosted, skip")
-                    continue
-                acct = status["account"]["acct"].split("@")
-                server = acct[-1] if len(acct) > 1 else ""
-                if server in self.config.filtered_instances:
-                    self.log.info(
-                        f"{instance.name}: filtered instance {server}, skip"
-                    )
-                    continue
-                if self._should_skip_status(status):
-                    self.log.info(f"{instance.name}: filtered by rules, skip")
-                    continue
-                if not self._public_cap_available():
-                    self.log.info("Public cap reached before boost. Stopping.")
-                    break
-                self.client.status_reblog(status)
-                self._count_public_boost()
-                self._remember_status(status)
-                self._save_state()
-                processed += 1
-                self.log.info(f"{instance.name}: boosted {processed}/{total}")
-                if self.state["hour_count"] >= self.config.per_hour_public_cap:
-                    self.log.info("Per-hour public cap reached, stopping early.")
-                    break
+                self.log.info("Public cap reached before boost. Stopping.")
+                break
+            trending = entry["status"]
+            result = self.client.search_v2(
+                trending["uri"], result_type="statuses"
+            ).get("statuses", [])
+            if not result:
+                self.log.info(f"{entry['instance']}: skip, not found")
+                continue
+            status = result[0]
+            if self._seen_status(status):
+                self.log.info(f"{entry['instance']}: already boosted, skip")
+                continue
+            acct = status["account"]["acct"].split("@")
+            server = acct[-1] if len(acct) > 1 else ""
+            if server in self.config.filtered_instances:
+                self.log.info(f"{entry['instance']}: filtered instance {server}, skip")
+                continue
+            if self._should_skip_status(status):
+                self.log.info(f"{entry['instance']}: filtered by rules, skip")
+                continue
+            self.client.status_reblog(status)
+            self._count_public_boost()
+            self._remember_status(status)
+            self._save_state()
+            processed += 1
+            self.log.info(f"{entry['instance']}: boosted {processed}/{total}")
+            if self.state["hour_count"] >= self.config.per_hour_public_cap:
+                self.log.info("Per-hour public cap reached, stopping early.")
+                break
+
+    def _fetch_trending_statuses(self, instance):
+        try:
+            client = self.init_client(instance.name)
+            statuses = client.trending_statuses()[: instance.limit]
+            return [{"instance": instance.name, "status": s} for s in statuses]
         except Exception as err:
             self.log.error(f"{instance.name}: error - {err}")
+            return []
 
     def start(self):
         self.boost()

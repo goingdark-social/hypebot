@@ -12,6 +12,8 @@ from tests.test_seen_status import DummyConfig, status_data
 def test_prioritizes_weighted_hashtags(tmp_path):
     cfg = DummyConfig(str(tmp_path / "state.json"))
     cfg.hashtag_scores = {"python": 10}
+    inst = types.SimpleNamespace(name="i", limit=2)
+    cfg.subscribed_instances = [inst]
     hype = Hype(cfg)
     hype.client = MagicMock()
     hype.client.search_v2.side_effect = [
@@ -24,7 +26,6 @@ def test_prioritizes_weighted_hashtags(tmp_path):
         {"uri": "https://a/1", "tags": [{"name": "python"}]},
     ]
     hype.init_client = MagicMock(return_value=m)
-    inst = types.SimpleNamespace(name="i", limit=2)
-    hype._boost_instance(inst)
+    hype.boost()
     first_search = hype.client.search_v2.call_args_list[0][0][0]
     assert first_search == "https://a/1"
