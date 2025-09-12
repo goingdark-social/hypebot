@@ -46,6 +46,7 @@ class Config:
     languages_allowlist: list = []
     state_path: str = "/app/secrets/state.json"
     seen_cache_size: int = 6000
+    hashtag_scores: dict = {}
 
     def __init__(self):
         # auth file containing login info
@@ -141,6 +142,10 @@ class Config:
                 self.seen_cache_size = int(
                     config.get("seen_cache_size", self.seen_cache_size)
                 )
+                self.hashtag_scores = {
+                    k.lower(): int(v)
+                    for k, v in (config.get("hashtag_scores") or {}).items()
+                }
 
 
 class ConfigException(Exception):

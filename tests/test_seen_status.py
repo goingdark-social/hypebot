@@ -26,6 +26,7 @@ class DummyConfig:
         self.languages_allowlist = []
         self.state_path = path
         self.seen_cache_size = 6000
+        self.hashtag_scores = {}
 
 
 def status_data(i, u):

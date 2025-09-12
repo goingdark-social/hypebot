@@ -155,7 +155,15 @@ class Hype:
                 self.log.info("Public cap reached. Skipping boosting this cycle.")
                 return
             mastodon_client = self.init_client(instance.name)
-            trending_statuses = mastodon_client.trending_statuses()[: instance.limit]
+            trending_statuses = mastodon_client.trending_statuses()
+            trending_statuses = sorted(
+                trending_statuses,
+                key=lambda s: sum(
+                    self.config.hashtag_scores.get(t.get("name", "").lower(), 0)
+                    for t in s.get("tags", [])
+                ),
+                reverse=True,
+            )[: instance.limit]
             total = len(trending_statuses)
             processed = 0
             for trending_status in trending_statuses:
