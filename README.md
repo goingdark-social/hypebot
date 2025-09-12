@@ -90,6 +90,8 @@ hashtag_scores:
 `max_boosts_per_run` limits how many posts get boosted in each run.
 `max_boosts_per_author_per_day` stops the bot from boosting the same author over and over.
 
+**Migration note**: The `rotate_instances` option has been removed. The bot now checks every subscribed instance each run, so older configs should drop this field.
+
 ## Features
 
 - Boost trending posts from other Mastodon instances
