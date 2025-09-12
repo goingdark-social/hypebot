@@ -40,3 +40,6 @@ languages_allowlist:
 state_path: "/app/secrets/state.json"
 # Number of posts to remember for duplicate detection
 seen_cache_size: 6000
+hashtag_scores:
+  python: 10
+  rust: 5

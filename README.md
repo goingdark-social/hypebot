@@ -74,10 +74,14 @@ languages_allowlist:
   - sv
 state_path: "/app/secrets/state.json"
 seen_cache_size: 6000
+hashtag_scores:
+  python: 10
+  rust: 5
 ```
 
 `min_reblogs` and `min_favourites` let you ignore posts that haven't gained enough traction yet.
 `seen_cache_size` limits how many posts the bot remembers to avoid boosting duplicates.
+`hashtag_scores` lets you push posts with certain hashtags to the front by assigning weights.
 
 ## Features
 
@@ -88,6 +92,7 @@ seen_cache_size: 6000
 - Enforce hourly and daily caps on public boosts
 - Skip reposts and filter posts without media or missing content warnings
 - Skip posts with too few reblogs or favourites
+- Prioritize posts containing weighted hashtags
 
 ---
 
