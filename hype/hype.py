@@ -4,6 +4,7 @@ import os.path
 import time
 from collections import deque
 from datetime import datetime, timezone
+import math
 
 import schedule
 from mastodon import Mastodon
@@ -20,12 +21,12 @@ class Hype:
             datefmt="%Y-%m-%d %H:%M:%S",
         )
         self.log = logging.getLogger("hype")
-        self.instance_index = 0
         self.state = self._load_state()
         self._seen = deque(
             self.state.get("seen_status_ids", []),
             maxlen=self.config.seen_cache_size,
         )
+        self._boosted_today = self.state.get("authors_boosted_today", {})
         self.log.info("Config loaded")
 
     def login(self):
@@ -47,7 +48,6 @@ class Hype:
         self.client.account_update_credentials(
             note=note, bot=True, discoverable=True, fields=fields
         )
-        self.state["last_instance_index"] = self.instance_index
         self._save_state()
 
     def _load_state(self):
@@ -61,7 +61,7 @@ class Hype:
             pass
         return {
             "seen_status_ids": [],
-            "last_instance_index": 0,
+            "authors_boosted_today": {},
             "day": "",
             "day_count": 0,
             "hour": "",
@@ -70,6 +70,7 @@ class Hype:
 
     def _save_state(self):
         self.state["seen_status_ids"] = list(self._seen)
+        self.state["authors_boosted_today"] = self._boosted_today
         try:
             with open(self.config.state_path, "w") as handle:
                 json.dump(self.state, handle)
@@ -83,6 +84,8 @@ class Hype:
         if self.state.get("day") != day_key:
             self.state["day"] = day_key
             self.state["day_count"] = 0
+            self.state["authors_boosted_today"] = {}
+            self._boosted_today = self.state["authors_boosted_today"]
         if self.state.get("hour") != hour_key:
             self.state["hour"] = hour_key
             self.state["hour_count"] = 0
@@ -102,14 +105,27 @@ class Hype:
     def _seen_status(self, status: dict) -> bool:
         sid = status["id"]
         url = status.get("url") or status.get("uri")
-        return sid in self._seen or url in self._seen or status.get("reblogged")
+        author = status["account"]["acct"]
+        return (
+            sid in self._seen
+            or url in self._seen
+            or status.get("reblogged")
+            or (
+                self.config.author_diversity_enforced
+                and self._boosted_today.get(author, 0)
+                >= self.config.max_boosts_per_author_per_day
+            )
+        )
 
     def _remember_status(self, status: dict):
         sid = status["id"]
         url = status.get("url") or status.get("uri")
+        author = status["account"]["acct"]
         self._seen.append(sid)
         if url:
             self._seen.append(url)
+        self._boosted_today[author] = self._boosted_today.get(author, 0) + 1
+        self.state["authors_boosted_today"] = self._boosted_today
 
     def _should_skip_status(self, status: dict) -> bool:
         if self.config.require_media and not status.get("media_attachments"):
@@ -130,77 +146,100 @@ class Hype:
             return True
         return False
 
+    def score_status(self, status: dict) -> float:
+        tag_score = sum(
+            self.config.hashtag_scores.get(t.get("name", "").lower(), 0)
+            for t in status.get("tags", [])
+        )
+        reblogs = math.log1p(status.get("reblogs_count", 0)) * 2
+        favourites = math.log1p(status.get("favourites_count", 0))
+        media_bonus = (
+            self.config.prefer_media if status.get("media_attachments") else 0
+        )
+        return tag_score + reblogs + favourites + media_bonus
+
+    def _normalize_scores(self, entries):
+        if not entries:
+            return
+        scores = [e["score"] for e in entries]
+        lo = min(scores)
+        hi = max(scores)
+        if hi == lo:
+            for e in entries:
+                e["score"] = 100
+            return
+        span = hi - lo
+        for e in entries:
+            e["score"] = (e["score"] - lo) / span * 100
+
     def boost(self):
         self.log.info("Run boost")
         if not self.config.subscribed_instances:
             self.log.warning("No subscribed instances configured.")
             return
-        instances = self.config.subscribed_instances
-        if self.config.rotate_instances:
-            self.instance_index = self.state.get("last_instance_index", 0) % len(
-                instances
-            )
-            target = instances[self.instance_index]
-            self._boost_instance(target)
-            self.instance_index = (self.instance_index + 1) % len(instances)
-            self.state["last_instance_index"] = self.instance_index
-            self._save_state()
-        else:
-            for inst in instances:
-                self._boost_instance(inst)
-
-    def _boost_instance(self, instance):
-        try:
-            if not self._public_cap_available():
-                self.log.info("Public cap reached. Skipping boosting this cycle.")
-                return
-            mastodon_client = self.init_client(instance.name)
-            trending_statuses = mastodon_client.trending_statuses()
-            trending_statuses = sorted(
-                trending_statuses,
-                key=lambda s: sum(
-                    self.config.hashtag_scores.get(t.get("name", "").lower(), 0)
-                    for t in s.get("tags", [])
-                ),
-                reverse=True,
-            )[: instance.limit]
-            total = len(trending_statuses)
-            processed = 0
-            for trending_status in trending_statuses:
-                result = self.client.search_v2(
-                    trending_status["uri"], result_type="statuses"
-                ).get("statuses", [])
-                if not result:
-                    self.log.info(f"{instance.name}: skip, not found")
-                    continue
-                status = result[0]
-                if self._seen_status(status):
-                    self.log.info(f"{instance.name}: already boosted, skip")
-                    continue
-                acct = status["account"]["acct"].split("@")
-                server = acct[-1] if len(acct) > 1 else ""
-                if server in self.config.filtered_instances:
-                    self.log.info(
-                        f"{instance.name}: filtered instance {server}, skip"
+        if not self._public_cap_available():
+            self.log.info("Public cap reached. Skipping boosting this cycle.")
+            return
+        collected = []
+        for inst in self.config.subscribed_instances:
+            for entry in self._fetch_trending_statuses(inst):
+                s = entry["status"]
+                entry["score"] = self.score_status(s)
+                collected.append(entry)
+        self._normalize_scores(collected)
+        collected.sort(
+            key=lambda e: (
+                e["score"],
+                datetime.fromisoformat(
+                    (e["status"].get("created_at") or "1970-01-01T00:00:00+00:00").replace(
+                        "Z", "+00:00"
                     )
-                    continue
-                if self._should_skip_status(status):
-                    self.log.info(f"{instance.name}: filtered by rules, skip")
-                    continue
-                if not self._public_cap_available():
-                    self.log.info("Public cap reached before boost. Stopping.")
-                    break
-                self.client.status_reblog(status)
-                self._count_public_boost()
-                self._remember_status(status)
-                self._save_state()
-                processed += 1
-                self.log.info(f"{instance.name}: boosted {processed}/{total}")
-                if self.state["hour_count"] >= self.config.per_hour_public_cap:
-                    self.log.info("Per-hour public cap reached, stopping early.")
-                    break
+                ),
+            ),
+            reverse=True,
+        )
+        total = len(collected)
+        boosted = 0
+        for entry in collected:
+            if boosted >= self.config.max_boosts_per_run or not self._public_cap_available():
+                break
+            trending = entry["status"]
+            result = self.client.search_v2(
+                trending["uri"], result_type="statuses"
+            ).get("statuses", [])
+            if not result:
+                self.log.info(f"{entry['instance']}: skip, not found")
+                continue
+            status = result[0]
+            if self._seen_status(status):
+                self.log.info(f"{entry['instance']}: already boosted, skip")
+                continue
+            acct = status["account"]["acct"].split("@")
+            server = acct[-1] if len(acct) > 1 else ""
+            if server in self.config.filtered_instances:
+                self.log.info(f"{entry['instance']}: filtered instance {server}, skip")
+                continue
+            if self._should_skip_status(status):
+                self.log.info(f"{entry['instance']}: filtered by rules, skip")
+                continue
+            self.client.status_reblog(status)
+            self._count_public_boost()
+            self._remember_status(status)
+            self._save_state()
+            boosted += 1
+            self.log.info(f"{entry['instance']}: boosted {boosted}/{total}")
+            if self.state["hour_count"] >= self.config.per_hour_public_cap:
+                self.log.info("Per-hour public cap reached, stopping early.")
+                break
+
+    def _fetch_trending_statuses(self, instance):
+        try:
+            client = self.init_client(instance.name)
+            statuses = client.trending_statuses()[: instance.limit]
+            return [{"instance": instance.name, "status": s} for s in statuses]
         except Exception as err:
             self.log.error(f"{instance.name}: error - {err}")
+            return []
 
     def start(self):
         self.boost()

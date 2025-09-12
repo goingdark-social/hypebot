@@ -38,7 +38,10 @@ class Config:
     fields: dict = {}
     daily_public_cap: int = 48
     per_hour_public_cap: int = 1
-    rotate_instances: bool = True
+    max_boosts_per_run: int = 5
+    max_boosts_per_author_per_day: int = 1
+    author_diversity_enforced: bool = True
+    prefer_media: float = 0
     require_media: bool = True
     skip_sensitive_without_cw: bool = True
     min_reblogs: int = 0
@@ -118,9 +121,29 @@ class Config:
                 self.per_hour_public_cap = int(
                     config.get("per_hour_public_cap", self.per_hour_public_cap)
                 )
-                self.rotate_instances = bool(
-                    config.get("rotate_instances", self.rotate_instances)
+                self.max_boosts_per_run = int(
+                    config.get("max_boosts_per_run", self.max_boosts_per_run)
                 )
+                self.max_boosts_per_author_per_day = int(
+                    config.get(
+                        "max_boosts_per_author_per_day",
+                        self.max_boosts_per_author_per_day,
+                    )
+                )
+                self.author_diversity_enforced = bool(
+                    config.get(
+                        "author_diversity_enforced",
+                        self.author_diversity_enforced,
+                    )
+                )
+                pm = config.get("prefer_media", self.prefer_media)
+                if isinstance(pm, bool):
+                    self.prefer_media = 1 if pm else 0
+                else:
+                    try:
+                        self.prefer_media = float(pm)
+                    except (TypeError, ValueError):
+                        self.prefer_media = self.prefer_media
                 self.require_media = bool(
                     config.get("require_media", self.require_media)
                 )

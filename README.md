@@ -2,7 +2,7 @@
 
 # hype
 
-This Mastodon bot transfers the trends from other instances directly to your personal timeline. You decide which instances it fetches and how much you want to see per instance.
+This Mastodon bot pulls trending posts from chosen instances, ranks them, and boosts the top results to your timeline. You decide which instances it fetches and how much you want to see per instance.
 
 ## Why
 
@@ -71,7 +71,10 @@ filtered_instances:
 
 daily_public_cap: 48
 per_hour_public_cap: 1
-rotate_instances: true
+max_boosts_per_run: 5
+max_boosts_per_author_per_day: 1
+author_diversity_enforced: true
+prefer_media: 1
 require_media: true
 skip_sensitive_without_cw: true
 min_reblogs: 0
@@ -87,16 +90,24 @@ hashtag_scores:
 ```
 
 `min_reblogs` and `min_favourites` let you ignore posts that haven't gained enough traction yet.
-`seen_cache_size` limits how many posts the bot remembers to avoid boosting duplicates.
+`seen_cache_size` sets how many posts the bot keeps in memory to avoid boosting the same thing twice. A bigger cache catches more duplicates but uses more RAM and takes longer to search.
 `hashtag_scores` lets you push posts with certain hashtags to the front by assigning weights.
+`prefer_media` adds the given bonus to posts with attachments; set to `true` for a default of `1`.
+`author_diversity_enforced` respects `max_boosts_per_author_per_day` when enabled.
+`max_boosts_per_run` limits how many posts get boosted in each run.
+`max_boosts_per_author_per_day` stops the bot from boosting the same author over and over.
+
+**Migration note**: The `rotate_instances` option has been removed. The bot now checks every subscribed instance each run, so older configs should drop this field.
 
 ## Features
 
 - Boost trending posts from other Mastodon instances
 - Update bot profile with list of subscribed instances
-- Rotate through subscribed instances
+- Rank collected posts using hashtags, engagement, and optional media preference
+- Normalize scores on a 0–100 scale and favor newer posts when scores tie
 - Skip duplicates across instances by tracking canonical URLs with a configurable cache
 - Enforce hourly and daily caps on public boosts
+- Limit boosts for any single author per day
 - Skip reposts and filter posts without media or missing content warnings
 - Skip posts with too few reblogs or favourites
 - Prioritize posts containing weighted hashtags
