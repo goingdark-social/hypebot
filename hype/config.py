@@ -41,7 +41,6 @@ class Config:
     max_boosts_per_run: int = 5
     max_boosts_per_author_per_day: int = 1
     author_diversity_enforced: bool = True
-    rotate_instances: bool = True
     prefer_media: float = 0
     require_media: bool = True
     skip_sensitive_without_cw: bool = True
@@ -136,9 +135,6 @@ class Config:
                         "author_diversity_enforced",
                         self.author_diversity_enforced,
                     )
-                )
-                self.rotate_instances = bool(
-                    config.get("rotate_instances", self.rotate_instances)
                 )
                 pm = config.get("prefer_media", self.prefer_media)
                 if isinstance(pm, bool):

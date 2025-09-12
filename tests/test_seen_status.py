@@ -21,7 +21,6 @@ class DummyConfig:
         self.max_boosts_per_run = 10
         self.max_boosts_per_author_per_day = 10
         self.author_diversity_enforced = True
-        self.rotate_instances = True
         self.prefer_media = False
         self.require_media = False
         self.skip_sensitive_without_cw = False
