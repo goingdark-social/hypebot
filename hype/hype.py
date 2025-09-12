@@ -26,7 +26,7 @@ class Hype:
             self.state.get("seen_status_ids", []),
             maxlen=self.config.seen_cache_size,
         )
-        self._boosted_today = self.state.get("authors_boosted_today", {})
+        self._boosted_today = self.state.get("authors_boosted_today", [])
         self.log.info("Config loaded")
 
     def login(self):
@@ -56,12 +56,15 @@ class Hype:
                 with open(self.config.state_path, "r") as handle:
                     data = json.load(handle)
                     data.setdefault("seen_status_ids", [])
+                    data.setdefault("authors_boosted_today", [])
+                    data.setdefault("last_seen_day", "")
                     return data
         except Exception:
             pass
         return {
             "seen_status_ids": [],
-            "authors_boosted_today": {},
+            "authors_boosted_today": [],
+            "last_seen_day": "",
             "day": "",
             "day_count": 0,
             "hour": "",
@@ -81,11 +84,13 @@ class Hype:
         now = datetime.now(timezone.utc)
         day_key = now.strftime("%Y-%m-%d")
         hour_key = now.strftime("%Y-%m-%dT%H")
+        if self.state.get("last_seen_day") != day_key:
+            self.state["last_seen_day"] = day_key
+            self.state["authors_boosted_today"] = []
+            self._boosted_today = self.state["authors_boosted_today"]
         if self.state.get("day") != day_key:
             self.state["day"] = day_key
             self.state["day_count"] = 0
-            self.state["authors_boosted_today"] = {}
-            self._boosted_today = self.state["authors_boosted_today"]
         if self.state.get("hour") != hour_key:
             self.state["hour"] = hour_key
             self.state["hour_count"] = 0
@@ -110,7 +115,7 @@ class Hype:
             sid in self._seen
             or url in self._seen
             or status.get("reblogged")
-            or self._boosted_today.get(author, 0)
+            or self._boosted_today.count(author)
             >= self.config.max_boosts_per_author_per_day
         )
 
@@ -121,7 +126,7 @@ class Hype:
         self._seen.append(sid)
         if url:
             self._seen.append(url)
-        self._boosted_today[author] = self._boosted_today.get(author, 0) + 1
+        self._boosted_today.append(author)
         self.state["authors_boosted_today"] = self._boosted_today
 
     def _should_skip_status(self, status: dict) -> bool:

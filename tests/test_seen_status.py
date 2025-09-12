@@ -1,5 +1,6 @@
 import sys
 import types
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -82,4 +83,16 @@ def test_respects_author_daily_limit(tmp_path):
     hype = Hype(cfg)
     hype._remember_status(status_data("1", "https://a/1"))
     assert hype._seen_status(status_data("2", "https://a/2"))
+
+
+def test_resets_author_list_on_day_change(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    cfg.max_boosts_per_author_per_day = 1
+    hype = Hype(cfg)
+    hype._remember_status(status_data("1", "https://a/1"))
+    assert hype._seen_status(status_data("2", "https://a/2"))
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+    hype.state["last_seen_day"] = yesterday
+    hype._tick_counters()
+    assert not hype._seen_status(status_data("3", "https://a/3"))
 
