@@ -4,6 +4,7 @@ import os.path
 import time
 from collections import deque
 from datetime import datetime, timezone
+import math
 
 import schedule
 from mastodon import Mastodon
@@ -127,6 +128,20 @@ class Hype:
             return True
         return False
 
+    def score_status(self, status: dict) -> float:
+        tag_score = sum(
+            self.config.hashtag_scores.get(t.get("name", "").lower(), 0)
+            for t in status.get("tags", [])
+        )
+        reblogs = math.log1p(status.get("reblogs_count", 0)) * 2
+        favourites = math.log1p(status.get("favourites_count", 0))
+        media_bonus = (
+            1
+            if self.config.prefer_media and status.get("media_attachments")
+            else 0
+        )
+        return tag_score + reblogs + favourites + media_bonus
+
     def boost(self):
         self.log.info("Run boost")
         if not self.config.subscribed_instances:
@@ -139,10 +154,7 @@ class Hype:
         for inst in self.config.subscribed_instances:
             collected.extend(self._fetch_trending_statuses(inst))
         collected.sort(
-            key=lambda s: sum(
-                self.config.hashtag_scores.get(t.get("name", "").lower(), 0)
-                for t in s["status"].get("tags", [])
-            ),
+            key=lambda s: self.score_status(s["status"]),
             reverse=True,
         )
         total = len(collected)

@@ -64,6 +64,7 @@ filtered_instances:
 
 daily_public_cap: 48
 per_hour_public_cap: 1
+prefer_media: true
 require_media: true
 skip_sensitive_without_cw: true
 min_reblogs: 0
@@ -81,12 +82,13 @@ hashtag_scores:
 `min_reblogs` and `min_favourites` let you ignore posts that haven't gained enough traction yet.
 `seen_cache_size` limits how many posts the bot remembers to avoid boosting duplicates.
 `hashtag_scores` lets you push posts with certain hashtags to the front by assigning weights.
+`prefer_media` gives posts with attachments a small edge when ranking.
 
 ## Features
 
 - Boost trending posts from other Mastodon instances
 - Update bot profile with list of subscribed instances
-- Rank collected posts across instances before boosting
+- Rank collected posts using hashtags, engagement, and optional media preference
 - Skip duplicates across instances by tracking canonical URLs with a configurable cache
 - Enforce hourly and daily caps on public boosts
 - Skip reposts and filter posts without media or missing content warnings

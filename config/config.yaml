@@ -30,6 +30,7 @@ filtered_instances:
 daily_public_cap: 48
 per_hour_public_cap: 1
 rotate_instances: true
+prefer_media: false
 require_media: true
 skip_sensitive_without_cw: true
 min_reblogs: 0
