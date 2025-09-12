@@ -185,11 +185,19 @@ class Hype:
             for entry in self._fetch_trending_statuses(inst):
                 s = entry["status"]
                 entry["score"] = self.score_status(s)
-                created = s.get("created_at") or "1970-01-01T00:00:00+00:00"
-                entry["created_at"] = datetime.fromisoformat(created.replace("Z", "+00:00"))
                 collected.append(entry)
         self._normalize_scores(collected)
-        collected.sort(key=lambda e: (e["score"], e["created_at"]), reverse=True)
+        collected.sort(
+            key=lambda e: (
+                e["score"],
+                datetime.fromisoformat(
+                    (e["status"].get("created_at") or "1970-01-01T00:00:00+00:00").replace(
+                        "Z", "+00:00"
+                    )
+                ),
+            ),
+            reverse=True,
+        )
         total = len(collected)
         boosted = 0
         for entry in collected:

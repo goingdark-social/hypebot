@@ -48,3 +48,41 @@ def test_respects_max_boosts_per_run(tmp_path):
     hype.client = client
     hype.boost()
     assert client.status_reblog.call_count == 1
+
+
+def test_equal_score_prefers_newer(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    inst = types.SimpleNamespace(name="i1", limit=2)
+    cfg.subscribed_instances = [inst]
+    hype = Hype(cfg)
+    trending = [
+        {
+            "uri": "https://a/1",
+            "reblogs_count": 5,
+            "favourites_count": 5,
+            "created_at": "2024-01-01T00:00:00Z",
+        },
+        {
+            "uri": "https://a/2",
+            "reblogs_count": 5,
+            "favourites_count": 5,
+            "created_at": "2024-01-02T00:00:00Z",
+        },
+    ]
+    m = MagicMock()
+    m.trending_statuses.return_value = trending
+    hype.init_client = MagicMock(return_value=m)
+    client = MagicMock()
+    older = status_data("1", "https://a/1")
+    older["created_at"] = "2024-01-01T00:00:00Z"
+    newer = status_data("2", "https://a/2")
+    newer["created_at"] = "2024-01-02T00:00:00Z"
+
+    def search(uri, result_type=None):
+        return {"statuses": [newer if uri == "https://a/2" else older]}
+
+    client.search_v2.side_effect = search
+    hype.client = client
+    hype.boost()
+    calls = [c.args[0]["uri"] for c in client.status_reblog.call_args_list]
+    assert calls == ["https://a/2", "https://a/1"]
