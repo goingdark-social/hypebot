@@ -29,6 +29,7 @@ filtered_instances:
 
 daily_public_cap: 48
 per_hour_public_cap: 1
+max_boosts_per_author_per_day: 1
 rotate_instances: true
 prefer_media: false
 require_media: true
