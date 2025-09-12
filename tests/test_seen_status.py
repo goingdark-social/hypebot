@@ -19,6 +19,7 @@ class DummyConfig:
         self.daily_public_cap = 10
         self.per_hour_public_cap = 10
         self.rotate_instances = True
+        self.prefer_media = False
         self.require_media = False
         self.skip_sensitive_without_cw = False
         self.min_reblogs = 0

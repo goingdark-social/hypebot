@@ -39,6 +39,7 @@ class Config:
     daily_public_cap: int = 48
     per_hour_public_cap: int = 1
     rotate_instances: bool = True
+    prefer_media: bool = False
     require_media: bool = True
     skip_sensitive_without_cw: bool = True
     min_reblogs: int = 0
@@ -120,6 +121,9 @@ class Config:
                 )
                 self.rotate_instances = bool(
                     config.get("rotate_instances", self.rotate_instances)
+                )
+                self.prefer_media = bool(
+                    config.get("prefer_media", self.prefer_media)
                 )
                 self.require_media = bool(
                     config.get("require_media", self.require_media)
