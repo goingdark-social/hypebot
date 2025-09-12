@@ -93,3 +93,21 @@ def test_can_disable_author_limit(tmp_path):
     hype._remember_status(status_data("1", "https://a/1"))
     assert not hype._seen_status(status_data("2", "https://a/2"))
 
+
+def test_seen_status_duplicate_url(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    hype = Hype(cfg)
+    first = status_data("1", "https://a/1")
+    second = status_data("2", "https://a/1")
+    hype._remember_status(first)
+    assert hype._seen_status(second)
+
+
+def test_seen_status_duplicate_id(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    hype = Hype(cfg)
+    first = status_data("1", "https://a/1")
+    second = status_data("1", "https://b/1")
+    hype._remember_status(first)
+    assert hype._seen_status(second)
+
