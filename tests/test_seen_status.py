@@ -18,6 +18,7 @@ class DummyConfig:
         self.fields = {}
         self.daily_public_cap = 10
         self.per_hour_public_cap = 10
+        self.max_boosts_per_author_per_day = 10
         self.rotate_instances = True
         self.prefer_media = False
         self.require_media = False
@@ -73,4 +74,12 @@ def test_seen_cache_respects_size(tmp_path):
     hype._remember_status(status_data("1", "https://a/1"))
     hype._remember_status(status_data("2", "https://a/2"))
     assert list(hype._seen) == ["2", "https://a/2"]
+
+
+def test_respects_author_daily_limit(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    cfg.max_boosts_per_author_per_day = 1
+    hype = Hype(cfg)
+    hype._remember_status(status_data("1", "https://a/1"))
+    assert hype._seen_status(status_data("2", "https://a/2"))
 

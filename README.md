@@ -64,6 +64,7 @@ filtered_instances:
 
 daily_public_cap: 48
 per_hour_public_cap: 1
+max_boosts_per_author_per_day: 1
 prefer_media: true
 require_media: true
 skip_sensitive_without_cw: true
@@ -83,6 +84,7 @@ hashtag_scores:
 `seen_cache_size` limits how many posts the bot remembers to avoid boosting duplicates.
 `hashtag_scores` lets you push posts with certain hashtags to the front by assigning weights.
 `prefer_media` gives posts with attachments a small edge when ranking.
+`max_boosts_per_author_per_day` stops the bot from boosting the same author over and over.
 
 ## Features
 
@@ -91,6 +93,7 @@ hashtag_scores:
 - Rank collected posts using hashtags, engagement, and optional media preference
 - Skip duplicates across instances by tracking canonical URLs with a configurable cache
 - Enforce hourly and daily caps on public boosts
+- Limit boosts for any single author per day
 - Skip reposts and filter posts without media or missing content warnings
 - Skip posts with too few reblogs or favourites
 - Prioritize posts containing weighted hashtags

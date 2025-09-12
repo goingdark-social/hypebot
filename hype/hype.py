@@ -26,6 +26,7 @@ class Hype:
             self.state.get("seen_status_ids", []),
             maxlen=self.config.seen_cache_size,
         )
+        self._boosted_today = self.state.get("authors_boosted_today", {})
         self.log.info("Config loaded")
 
     def login(self):
@@ -60,6 +61,7 @@ class Hype:
             pass
         return {
             "seen_status_ids": [],
+            "authors_boosted_today": {},
             "day": "",
             "day_count": 0,
             "hour": "",
@@ -68,6 +70,7 @@ class Hype:
 
     def _save_state(self):
         self.state["seen_status_ids"] = list(self._seen)
+        self.state["authors_boosted_today"] = self._boosted_today
         try:
             with open(self.config.state_path, "w") as handle:
                 json.dump(self.state, handle)
@@ -81,6 +84,8 @@ class Hype:
         if self.state.get("day") != day_key:
             self.state["day"] = day_key
             self.state["day_count"] = 0
+            self.state["authors_boosted_today"] = {}
+            self._boosted_today = self.state["authors_boosted_today"]
         if self.state.get("hour") != hour_key:
             self.state["hour"] = hour_key
             self.state["hour_count"] = 0
@@ -100,14 +105,24 @@ class Hype:
     def _seen_status(self, status: dict) -> bool:
         sid = status["id"]
         url = status.get("url") or status.get("uri")
-        return sid in self._seen or url in self._seen or status.get("reblogged")
+        author = status["account"]["acct"]
+        return (
+            sid in self._seen
+            or url in self._seen
+            or status.get("reblogged")
+            or self._boosted_today.get(author, 0)
+            >= self.config.max_boosts_per_author_per_day
+        )
 
     def _remember_status(self, status: dict):
         sid = status["id"]
         url = status.get("url") or status.get("uri")
+        author = status["account"]["acct"]
         self._seen.append(sid)
         if url:
             self._seen.append(url)
+        self._boosted_today[author] = self._boosted_today.get(author, 0) + 1
+        self.state["authors_boosted_today"] = self._boosted_today
 
     def _should_skip_status(self, status: dict) -> bool:
         if self.config.require_media and not status.get("media_attachments"):
