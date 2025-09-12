@@ -29,9 +29,11 @@ filtered_instances:
 
 daily_public_cap: 48
 per_hour_public_cap: 1
+max_boosts_per_run: 5
 max_boosts_per_author_per_day: 1
+author_diversity_enforced: true
 rotate_instances: true
-prefer_media: false
+prefer_media: 1
 require_media: true
 skip_sensitive_without_cw: true
 min_reblogs: 0
