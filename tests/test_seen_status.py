@@ -18,6 +18,7 @@ class DummyConfig:
         self.fields = {}
         self.daily_public_cap = 10
         self.per_hour_public_cap = 10
+        self.max_boosts_per_run = 10
         self.max_boosts_per_author_per_day = 10
         self.rotate_instances = True
         self.prefer_media = False

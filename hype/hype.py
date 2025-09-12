@@ -157,6 +157,20 @@ class Hype:
         )
         return tag_score + reblogs + favourites + media_bonus
 
+    def _normalize_scores(self, entries):
+        if not entries:
+            return
+        scores = [e["score"] for e in entries]
+        lo = min(scores)
+        hi = max(scores)
+        if hi == lo:
+            for e in entries:
+                e["score"] = 100
+            return
+        span = hi - lo
+        for e in entries:
+            e["score"] = (e["score"] - lo) / span * 100
+
     def boost(self):
         self.log.info("Run boost")
         if not self.config.subscribed_instances:
@@ -167,16 +181,18 @@ class Hype:
             return
         collected = []
         for inst in self.config.subscribed_instances:
-            collected.extend(self._fetch_trending_statuses(inst))
-        collected.sort(
-            key=lambda s: self.score_status(s["status"]),
-            reverse=True,
-        )
+            for entry in self._fetch_trending_statuses(inst):
+                s = entry["status"]
+                entry["score"] = self.score_status(s)
+                created = s.get("created_at") or "1970-01-01T00:00:00+00:00"
+                entry["created_at"] = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                collected.append(entry)
+        self._normalize_scores(collected)
+        collected.sort(key=lambda e: (e["score"], e["created_at"]), reverse=True)
         total = len(collected)
-        processed = 0
+        boosted = 0
         for entry in collected:
-            if not self._public_cap_available():
-                self.log.info("Public cap reached before boost. Stopping.")
+            if boosted >= self.config.max_boosts_per_run or not self._public_cap_available():
                 break
             trending = entry["status"]
             result = self.client.search_v2(
@@ -201,8 +217,8 @@ class Hype:
             self._count_public_boost()
             self._remember_status(status)
             self._save_state()
-            processed += 1
-            self.log.info(f"{entry['instance']}: boosted {processed}/{total}")
+            boosted += 1
+            self.log.info(f"{entry['instance']}: boosted {boosted}/{total}")
             if self.state["hour_count"] >= self.config.per_hour_public_cap:
                 self.log.info("Per-hour public cap reached, stopping early.")
                 break

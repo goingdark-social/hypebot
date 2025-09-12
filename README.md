@@ -64,6 +64,7 @@ filtered_instances:
 
 daily_public_cap: 48
 per_hour_public_cap: 1
+max_boosts_per_run: 5
 max_boosts_per_author_per_day: 1
 prefer_media: true
 require_media: true
@@ -85,12 +86,14 @@ hashtag_scores:
 `hashtag_scores` lets you push posts with certain hashtags to the front by assigning weights.
 `prefer_media` gives posts with attachments a small edge when ranking.
 `max_boosts_per_author_per_day` stops the bot from boosting the same author over and over.
+`max_boosts_per_run` limits how many posts get boosted in each run.
 
 ## Features
 
 - Boost trending posts from other Mastodon instances
 - Update bot profile with list of subscribed instances
 - Rank collected posts using hashtags, engagement, and optional media preference
+- Normalize scores on a 0–100 scale and break ties by latest timestamp
 - Skip duplicates across instances by tracking canonical URLs with a configurable cache
 - Enforce hourly and daily caps on public boosts
 - Limit boosts for any single author per day
