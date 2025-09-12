@@ -83,7 +83,7 @@ hashtag_scores:
 ```
 
 `min_reblogs` and `min_favourites` let you ignore posts that haven't gained enough traction yet.
-`seen_cache_size` limits how many posts the bot remembers to avoid boosting duplicates.
+`seen_cache_size` sets how many posts the bot keeps in memory to avoid boosting the same thing twice. A bigger cache catches more duplicates but uses more RAM and takes longer to search.
 `hashtag_scores` lets you push posts with certain hashtags to the front by assigning weights.
 `prefer_media` adds the given bonus to posts with attachments; set to `true` for a default of `1`.
 `author_diversity_enforced` respects `max_boosts_per_author_per_day` when enabled.
