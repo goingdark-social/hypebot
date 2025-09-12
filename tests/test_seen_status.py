@@ -45,6 +45,9 @@ def status_data(i, u):
 
 def test_skips_duplicates_across_instances(tmp_path):
     cfg = DummyConfig(str(tmp_path / "state.json"))
+    inst1 = types.SimpleNamespace(name="i1", limit=1)
+    inst2 = types.SimpleNamespace(name="i2", limit=1)
+    cfg.subscribed_instances = [inst1, inst2]
     hype = Hype(cfg)
     client = MagicMock()
     client.search_v2.side_effect = [
@@ -57,10 +60,7 @@ def test_skips_duplicates_across_instances(tmp_path):
     m2 = MagicMock()
     m2.trending_statuses.return_value = [{"uri": "https://a/1"}]
     hype.init_client = MagicMock(side_effect=[m1, m2])
-    inst1 = types.SimpleNamespace(name="i1", limit=1)
-    inst2 = types.SimpleNamespace(name="i2", limit=1)
-    hype._boost_instance(inst1)
-    hype._boost_instance(inst2)
+    hype.boost()
     assert client.status_reblog.call_count == 1
     assert list(hype._seen).count("https://a/1") == 1
 

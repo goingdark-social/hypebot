@@ -2,7 +2,7 @@
 
 # hype
 
-This Mastodon bot transfers the trends from other instances directly to your personal timeline. You decide which instances it fetches and how much you want to see per instance.
+This Mastodon bot pulls trending posts from chosen instances, ranks them, and boosts the top results to your timeline. You decide which instances it fetches and how much you want to see per instance.
 
 ## Why
 
@@ -64,7 +64,6 @@ filtered_instances:
 
 daily_public_cap: 48
 per_hour_public_cap: 1
-rotate_instances: true
 require_media: true
 skip_sensitive_without_cw: true
 min_reblogs: 0
@@ -87,7 +86,7 @@ hashtag_scores:
 
 - Boost trending posts from other Mastodon instances
 - Update bot profile with list of subscribed instances
-- Rotate through subscribed instances
+- Rank collected posts across instances before boosting
 - Skip duplicates across instances by tracking canonical URLs with a configurable cache
 - Enforce hourly and daily caps on public boosts
 - Skip reposts and filter posts without media or missing content warnings
