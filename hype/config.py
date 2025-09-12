@@ -38,6 +38,7 @@ class Config:
     fields: dict = {}
     daily_public_cap: int = 48
     per_hour_public_cap: int = 1
+    max_boosts_per_run: int = 5
     max_boosts_per_author_per_day: int = 1
     rotate_instances: bool = True
     prefer_media: bool = False
@@ -119,6 +120,9 @@ class Config:
                 )
                 self.per_hour_public_cap = int(
                     config.get("per_hour_public_cap", self.per_hour_public_cap)
+                )
+                self.max_boosts_per_run = int(
+                    config.get("max_boosts_per_run", self.max_boosts_per_run)
                 )
                 self.max_boosts_per_author_per_day = int(
                     config.get(
