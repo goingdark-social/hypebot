@@ -97,7 +97,7 @@ hashtag_scores:
 - Boost trending posts from other Mastodon instances
 - Update bot profile with list of subscribed instances
 - Rank collected posts using hashtags, engagement, and optional media preference
-- Normalize scores on a 0–100 scale and break ties by latest timestamp
+- Normalize scores on a 0–100 scale and favor newer posts when scores tie
 - Skip duplicates across instances by tracking canonical URLs with a configurable cache
 - Enforce hourly and daily caps on public boosts
 - Limit boosts for any single author per day
