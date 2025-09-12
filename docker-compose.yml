@@ -1,8 +1,7 @@
 version: "3"
 services:
   hype:
-    # build:
-    #   context: .
-    image: valentinriess/hype:latest
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/hypebot:latest
     volumes:
       - ./config:/app/config
+    restart: unless-stopped
