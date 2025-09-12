@@ -86,3 +86,16 @@ def test_equal_score_prefers_newer(tmp_path):
     hype.boost()
     calls = [c.args[0]["uri"] for c in client.status_reblog.call_args_list]
     assert calls == ["https://a/2", "https://a/1"]
+
+
+def test_fetch_trending_statuses_handles_error(tmp_path, caplog):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    hype = Hype(cfg)
+    inst = types.SimpleNamespace(name="i1", limit=1)
+    client = MagicMock()
+    client.trending_statuses.side_effect = Exception("boom")
+    hype.init_client = MagicMock(return_value=client)
+    with caplog.at_level("ERROR"):
+        res = hype._fetch_trending_statuses(inst)
+    assert res == []
+    assert f"{inst.name}: error - boom" in caplog.text
