@@ -86,3 +86,112 @@ def test_equal_score_prefers_newer(tmp_path):
     hype.boost()
     calls = [c.args[0]["uri"] for c in client.status_reblog.call_args_list]
     assert calls == ["https://a/2", "https://a/1"]
+
+
+def test_no_activity_without_subscribed_instances(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    hype = Hype(cfg)
+    hype.client = MagicMock()
+    hype.boost()
+    hype.client.status_reblog.assert_not_called()
+    hype.client.search_v2.assert_not_called()
+
+
+def test_no_activity_when_public_cap_unavailable(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    inst = types.SimpleNamespace(name="i1", limit=1)
+    cfg.subscribed_instances = [inst]
+    hype = Hype(cfg)
+    hype._public_cap_available = MagicMock(return_value=False)
+    hype.client = MagicMock()
+    hype.boost()
+    hype.client.status_reblog.assert_not_called()
+    hype.client.search_v2.assert_not_called()
+
+
+def test_skips_empty_filtered_and_blocked_statuses(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    inst = types.SimpleNamespace(name="i1", limit=3)
+    cfg.subscribed_instances = [inst]
+    cfg.filtered_instances = ["bad.instance"]
+    cfg.require_media = True
+    hype = Hype(cfg)
+    trending = [
+        {
+            "uri": "https://a/1",
+            "reblogs_count": 1,
+            "favourites_count": 1,
+            "created_at": "2024-01-01T00:00:00Z",
+        },
+        {
+            "uri": "https://a/2",
+            "reblogs_count": 1,
+            "favourites_count": 1,
+            "created_at": "2024-01-01T00:00:00Z",
+        },
+        {
+            "uri": "https://a/3",
+            "reblogs_count": 1,
+            "favourites_count": 1,
+            "created_at": "2024-01-01T00:00:00Z",
+        },
+    ]
+    m = MagicMock()
+    m.trending_statuses.return_value = trending
+    hype.init_client = MagicMock(return_value=m)
+    client = MagicMock()
+    s2 = status_data("2", "https://a/2")
+    s2["account"]["acct"] = "u@bad.instance"
+    s3 = status_data("3", "https://a/3")
+    s3["media_attachments"] = []
+    client.search_v2.side_effect = [
+        {"statuses": []},
+        {"statuses": [s2]},
+        {"statuses": [s3]},
+    ]
+    hype.client = client
+    hype.boost()
+    client.status_reblog.assert_not_called()
+    assert client.search_v2.call_count == 3
+
+
+def test_stops_when_hour_cap_reached(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    inst = types.SimpleNamespace(name="i1", limit=5)
+    cfg.subscribed_instances = [inst]
+    cfg.per_hour_public_cap = 2
+    hype = Hype(cfg)
+    trending = [
+        {
+            "uri": "https://a/1",
+            "reblogs_count": 1,
+            "favourites_count": 1,
+            "created_at": "2024-01-01T00:00:00Z",
+        },
+        {
+            "uri": "https://a/2",
+            "reblogs_count": 1,
+            "favourites_count": 1,
+            "created_at": "2024-01-01T00:00:00Z",
+        },
+        {
+            "uri": "https://a/3",
+            "reblogs_count": 1,
+            "favourites_count": 1,
+            "created_at": "2024-01-01T00:00:00Z",
+        },
+    ]
+    m = MagicMock()
+    m.trending_statuses.return_value = trending
+    hype.init_client = MagicMock(return_value=m)
+    client = MagicMock()
+    client.search_v2.side_effect = [
+        {"statuses": [status_data("1", "https://a/1")]},
+        {"statuses": [status_data("2", "https://a/2")]},
+        {"statuses": [status_data("3", "https://a/3")]},
+    ]
+    hype.client = client
+    hype.boost()
+    assert client.status_reblog.call_count == 2
+    assert client.search_v2.call_count == 2
+    assert hype.state["hour_count"] == 2
