@@ -26,6 +26,22 @@ def test_normalizes_and_sorts_candidates(tmp_path):
     assert ordered == [3, 2, 1]
 
 
+def test_normalize_scores_empty_list(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    hype = Hype(cfg)
+    entries = []
+    hype._normalize_scores(entries)
+    assert entries == []
+
+
+def test_normalize_scores_equal_values(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    hype = Hype(cfg)
+    entries = [{"score": 7}, {"score": 7}]
+    hype._normalize_scores(entries)
+    assert [e["score"] for e in entries] == [100, 100]
+
+
 def test_respects_max_boosts_per_run(tmp_path):
     cfg = DummyConfig(str(tmp_path / "state.json"))
     cfg.max_boosts_per_run = 1
