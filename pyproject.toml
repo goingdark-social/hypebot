@@ -1,48 +1,26 @@
-[project]
-name = "hype"
-version = "0.2.0"
-description = "Mastodon bot that transfers trends from other instances"
-authors = [
-    {name = "Valentin Rieß", email = "contact@example.com"},
-]
-license = {text = "AGPL-3.0"}
-readme = "README.md"
-requires-python = ">=3.8"
-dependencies = [
-    "pyyaml",
-    "Mastodon.py",
-    "schedule",
-]
-
-[project.optional-dependencies]
-test = ["pytest"]
-
+# Build system configuration (not needed for this project but good practice)
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
+# Semantic Release Configuration
 [tool.semantic_release]
-version_toml = ["pyproject.toml:project.version"]
+version_toml = []  # We're not managing version in this file
 branch = "main"
 upload_to_pypi = false
 upload_to_repository = false
 upload_to_release = true
-build_command = "python -m pip install build && python -m build"
-commit_message = "chore(release): {version} [skip ci]"
+build_command = ""
+commit_message = "chore(release): v{version} [skip ci]"
+tag_format = "v{version}"
 
 [tool.semantic_release.branches.main]
 match = "main"
 prerelease = false
 
 [tool.semantic_release.changelog]
-template_dir = "templates"
 changelog_file = "CHANGELOG.md"
-
-[tool.semantic_release.changelog.environment]
-block_start_string = "{%"
-block_end_string = "%}"
-variable_start_string = "{{"
-variable_end_string = "}}"
+exclude_commit_patterns = []
 
 [tool.semantic_release.commit_parser_options]
 allowed_tags = [
@@ -65,5 +43,9 @@ name = "origin"
 type = "github"
 ignore_token_for_push = false
 
-[tool.semantic_release.remote.token]
-env = "GH_TOKEN"
+# Test configuration (for pytest)
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
