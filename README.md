@@ -94,5 +94,9 @@ hashtag_scores:
 - Skip posts with too few reblogs or favourites
 - Prioritize posts containing weighted hashtags
 
+## Branches
+
+Work starts on `develop`. When it's merged into `main` and deleted, a workflow recreates `develop` from `main`. If that job fails, create the branch manually.
+
 ---
  
