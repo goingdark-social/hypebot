@@ -22,6 +22,13 @@ services:
 ```
 Replace `v0.1.0` with the release you want to run.
 
+Pull requests publish images tagged with the PR number and commit. For testing you can pull them from the registry, for example:
+
+```
+docker pull ghcr.io/goingdark-social/hypebot:pr-123
+docker pull ghcr.io/goingdark-social/hypebot:sha-abcdef1
+```
+
 ## Configuration
 
 Create a `config.yaml` and a `auth.yaml` file in `./config/`. Enter the credentials of your bot-account into `auth.yaml`. You can define which servers to follow and how often to fetch new posts as well as how to automatically change your profile in config.yaml. See the examples below:
