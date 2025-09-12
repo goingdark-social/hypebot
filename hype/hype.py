@@ -110,8 +110,11 @@ class Hype:
             sid in self._seen
             or url in self._seen
             or status.get("reblogged")
-            or self._boosted_today.get(author, 0)
-            >= self.config.max_boosts_per_author_per_day
+            or (
+                self.config.author_diversity_enforced
+                and self._boosted_today.get(author, 0)
+                >= self.config.max_boosts_per_author_per_day
+            )
         )
 
     def _remember_status(self, status: dict):
@@ -151,9 +154,7 @@ class Hype:
         reblogs = math.log1p(status.get("reblogs_count", 0)) * 2
         favourites = math.log1p(status.get("favourites_count", 0))
         media_bonus = (
-            1
-            if self.config.prefer_media and status.get("media_attachments")
-            else 0
+            self.config.prefer_media if status.get("media_attachments") else 0
         )
         return tag_score + reblogs + favourites + media_bonus
 

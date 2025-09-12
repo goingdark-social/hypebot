@@ -24,11 +24,11 @@ def test_scores_hashtags_and_engagement(tmp_path):
 
 def test_media_bonus(tmp_path):
     cfg = DummyConfig(str(tmp_path / "state.json"))
-    cfg.prefer_media = True
+    cfg.prefer_media = 0.5
     hype = Hype(cfg)
     s = status_data("1", "https://a/1")
     s["media_attachments"] = [1]
-    assert hype.score_status(s) == pytest.approx(1)
+    assert hype.score_status(s) == pytest.approx(0.5)
 
 
 def test_no_media_bonus_without_preference(tmp_path):

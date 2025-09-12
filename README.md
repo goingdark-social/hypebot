@@ -66,7 +66,8 @@ daily_public_cap: 48
 per_hour_public_cap: 1
 max_boosts_per_run: 5
 max_boosts_per_author_per_day: 1
-prefer_media: true
+author_diversity_enforced: true
+prefer_media: 1
 require_media: true
 skip_sensitive_without_cw: true
 min_reblogs: 0
@@ -84,9 +85,10 @@ hashtag_scores:
 `min_reblogs` and `min_favourites` let you ignore posts that haven't gained enough traction yet.
 `seen_cache_size` limits how many posts the bot remembers to avoid boosting duplicates.
 `hashtag_scores` lets you push posts with certain hashtags to the front by assigning weights.
-`prefer_media` gives posts with attachments a small edge when ranking.
-`max_boosts_per_author_per_day` stops the bot from boosting the same author over and over.
+`prefer_media` adds the given bonus to posts with attachments; set to `true` for a default of `1`.
+`author_diversity_enforced` respects `max_boosts_per_author_per_day` when enabled.
 `max_boosts_per_run` limits how many posts get boosted in each run.
+`max_boosts_per_author_per_day` stops the bot from boosting the same author over and over.
 
 ## Features
 
