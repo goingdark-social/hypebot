@@ -149,12 +149,12 @@ jobs:
       - uses: actions/github-script@v7
         with:
           script: |
-            const mainRef = await github.git.getRef({
+            const mainRef = await github.rest.git.getRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: 'heads/main'
             })
-            await github.git.createRef({
+            await github.rest.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: 'refs/heads/develop',
