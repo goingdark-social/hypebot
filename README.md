@@ -111,6 +111,7 @@ hashtag_scores:
 - Skip reposts and filter posts without media or missing content warnings
 - Skip posts with too few reblogs or favourites
 - Prioritize posts containing weighted hashtags
+- Read timestamps whether they're strings or Python datetimes
 
 ## Branches
 

@@ -172,6 +172,14 @@ class Hype:
         for e in entries:
             e["score"] = (e["score"] - lo) / span * 100
 
+    def _created_at(self, status):
+        value = status.get("created_at")
+        if isinstance(value, datetime):
+            return value
+        if not value:
+            return datetime.fromtimestamp(0, timezone.utc)
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
     def boost(self):
         self.log.info("Run boost")
         if not self.config.subscribed_instances:
@@ -188,14 +196,7 @@ class Hype:
                 collected.append(entry)
         self._normalize_scores(collected)
         collected.sort(
-            key=lambda e: (
-                e["score"],
-                datetime.fromisoformat(
-                    (e["status"].get("created_at") or "1970-01-01T00:00:00+00:00").replace(
-                        "Z", "+00:00"
-                    )
-                ),
-            ),
+            key=lambda e: (e["score"], self._created_at(e["status"])),
             reverse=True,
         )
         total = len(collected)
