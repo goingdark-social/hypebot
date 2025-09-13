@@ -4,6 +4,8 @@ import types
 from datetime import datetime
 from unittest.mock import MagicMock
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from hype.hype import Hype
@@ -66,23 +68,32 @@ def test_respects_max_boosts_per_run(tmp_path):
     assert client.status_reblog.call_count == 1
 
 
-def test_equal_score_prefers_newer(tmp_path):
+@pytest.mark.parametrize("use_datetime", [False, True])
+def test_equal_score_prefers_newer(tmp_path, use_datetime):
     cfg = DummyConfig(str(tmp_path / "state.json"))
     inst = types.SimpleNamespace(name="i1", limit=2)
     cfg.subscribed_instances = [inst]
     hype = Hype(cfg)
+
+    def ts(val):
+        return (
+            datetime.fromisoformat(val.replace("Z", "+00:00"))
+            if use_datetime
+            else val
+        )
+
     trending = [
         {
             "uri": "https://a/1",
             "reblogs_count": 5,
             "favourites_count": 5,
-            "created_at": "2024-01-01T00:00:00Z",
+            "created_at": ts("2024-01-01T00:00:00Z"),
         },
         {
             "uri": "https://a/2",
             "reblogs_count": 5,
             "favourites_count": 5,
-            "created_at": "2024-01-02T00:00:00Z",
+            "created_at": ts("2024-01-02T00:00:00Z"),
         },
     ]
     m = MagicMock()
@@ -90,9 +101,9 @@ def test_equal_score_prefers_newer(tmp_path):
     hype.init_client = MagicMock(return_value=m)
     client = MagicMock()
     older = status_data("1", "https://a/1")
-    older["created_at"] = "2024-01-01T00:00:00Z"
+    older["created_at"] = ts("2024-01-01T00:00:00Z")
     newer = status_data("2", "https://a/2")
-    newer["created_at"] = "2024-01-02T00:00:00Z"
+    newer["created_at"] = ts("2024-01-02T00:00:00Z")
 
     def search(uri, result_type=None):
         return {"statuses": [newer if uri == "https://a/2" else older]}
