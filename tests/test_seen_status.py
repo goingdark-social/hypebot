@@ -12,6 +12,8 @@ class DummyConfig:
     def __init__(self, path):
         self.bot_account = types.SimpleNamespace(server="s", access_token="t")
         self.log_level = "ERROR"
+        self.debug_decisions = False
+        self.logfile_path = ""
         self.subscribed_instances = []
         self.filtered_instances = []
         self.profile_prefix = ""

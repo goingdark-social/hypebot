@@ -15,12 +15,56 @@ from .config import Config
 class Hype:
     def __init__(self, config: Config) -> None:
         self.config = config
-        logging.basicConfig(
-            format="%(asctime)s %(levelname)-8s %(message)s",
-            level=logging.getLevelName(self.config.log_level),
-            datefmt="%Y-%m-%d %H:%M:%S",
+        
+        # Set up logging with file handler if logfile_path is specified
+        handlers = []
+        
+        # Console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s %(levelname)-8s %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S"
+            )
         )
+        handlers.append(console_handler)
+        
+        # File handler if logfile_path is configured
+        if self.config.logfile_path:
+            try:
+                # Ensure the directory exists
+                import os
+                logfile_dir = os.path.dirname(self.config.logfile_path)
+                if logfile_dir and not os.path.exists(logfile_dir):
+                    os.makedirs(logfile_dir, exist_ok=True)
+                    
+                file_handler = logging.FileHandler(self.config.logfile_path)
+                file_handler.setFormatter(
+                    logging.Formatter(
+                        "%(asctime)s %(levelname)-8s %(name)s - %(message)s",
+                        datefmt="%Y-%m-%d %H:%M:%S"
+                    )
+                )
+                handlers.append(file_handler)
+            except Exception as e:
+                print(f"Warning: Could not set up log file {self.config.logfile_path}: {e}")
+        
+        # Configure logging
+        logging.basicConfig(
+            handlers=handlers,
+            level=logging.getLevelName(self.config.log_level),
+            force=True  # Override any existing logging configuration
+        )
+        
         self.log = logging.getLogger("hype")
+        
+        # Set up debug logger for detailed decision tracing
+        self.debug_log = logging.getLogger("hype.decisions")
+        if self.config.debug_decisions:
+            self.debug_log.setLevel(logging.DEBUG)
+        else:
+            self.debug_log.setLevel(logging.INFO)
+            
         self.state = self._load_state()
         self._seen = deque(
             self.state.get("seen_status_ids", []),
@@ -103,24 +147,40 @@ class Hype:
         self.state["hour_count"] += 1
 
     def _seen_status(self, status: dict) -> bool:
-        sid = status["id"]
+        sid = status.get("id", "unknown")
         url = status.get("url") or status.get("uri")
-        author = status["account"]["acct"]
-        return (
-            sid in self._seen
-            or url in self._seen
-            or status.get("reblogged")
-            or (
-                self.config.author_diversity_enforced
-                and self._boosted_today.get(author, 0)
-                >= self.config.max_boosts_per_author_per_day
-            )
+        author = status.get("account", {}).get("acct", "unknown")
+        
+        # Check various conditions for seen status
+        sid_seen = sid in self._seen
+        url_seen = url in self._seen if url else False
+        already_reblogged = status.get("reblogged", False)
+        author_limit_hit = (
+            self.config.author_diversity_enforced
+            and self._boosted_today.get(author, 0)
+            >= self.config.max_boosts_per_author_per_day
         )
+        
+        is_seen = sid_seen or url_seen or already_reblogged or author_limit_hit
+        
+        # Debug logging for seen status decision
+        if self.config.debug_decisions:
+            sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
+            self.debug_log.debug(f"STATUS {sid_display} | SEEN CHECK: {is_seen}")
+            self.debug_log.debug(f"  Author: {author}")
+            self.debug_log.debug(f"  ID seen: {sid_seen}")
+            self.debug_log.debug(f"  URL seen: {url_seen}")
+            self.debug_log.debug(f"  Already reblogged: {already_reblogged}")
+            if self.config.author_diversity_enforced:
+                self.debug_log.debug(f"  Author boosts today: {self._boosted_today.get(author, 0)}/{self.config.max_boosts_per_author_per_day}")
+                self.debug_log.debug(f"  Author limit hit: {author_limit_hit}")
+        
+        return is_seen
 
     def _remember_status(self, status: dict):
-        sid = status["id"]
+        sid = status.get("id", "unknown")
         url = status.get("url") or status.get("uri")
-        author = status["account"]["acct"]
+        author = status.get("account", {}).get("acct", "unknown")
         self._seen.append(sid)
         if url:
             self._seen.append(url)
@@ -128,35 +188,94 @@ class Hype:
         self.state["authors_boosted_today"] = self._boosted_today
 
     def _should_skip_status(self, status: dict) -> bool:
-        if self.config.require_media and not status.get("media_attachments"):
-            return True
-        if (
+        sid = status.get("id", "unknown")
+        
+        # Check media requirement
+        has_media = bool(status.get("media_attachments"))
+        skip_no_media = self.config.require_media and not has_media
+        
+        # Check sensitive content without content warning
+        is_sensitive = status.get("sensitive", False)
+        spoiler_text = (status.get("spoiler_text") or "").strip()
+        skip_sensitive = (
             self.config.skip_sensitive_without_cw
-            and status.get("sensitive")
-            and not (status.get("spoiler_text") or "").strip()
-        ):
-            return True
-        if self.config.languages_allowlist:
-            lang = (status.get("language") or "").lower()
-            if lang not in self.config.languages_allowlist:
-                return True
-        if status.get("reblogs_count", 0) < self.config.min_reblogs:
-            return True
-        if status.get("favourites_count", 0) < self.config.min_favourites:
-            return True
-        return False
+            and is_sensitive
+            and not spoiler_text
+        )
+        
+        # Check language allowlist
+        lang = (status.get("language") or "").lower()
+        skip_language = (
+            self.config.languages_allowlist
+            and lang not in self.config.languages_allowlist
+        )
+        
+        # Check minimum engagement
+        reblogs_count = status.get("reblogs_count", 0)
+        favourites_count = status.get("favourites_count", 0)
+        skip_low_reblogs = reblogs_count < self.config.min_reblogs
+        skip_low_favourites = favourites_count < self.config.min_favourites
+        
+        should_skip = (
+            skip_no_media
+            or skip_sensitive
+            or skip_language
+            or skip_low_reblogs
+            or skip_low_favourites
+        )
+        
+        # Debug logging for filtering decision
+        if self.config.debug_decisions:
+            sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
+            self.debug_log.debug(f"STATUS {sid_display} | FILTER CHECK: {'SKIP' if should_skip else 'KEEP'}")
+            self.debug_log.debug(f"  Media attachments: {len(status.get('media_attachments', []))}")
+            self.debug_log.debug(f"  Skip no media: {skip_no_media} (require_media: {self.config.require_media})")
+            self.debug_log.debug(f"  Sensitive: {is_sensitive}, CW: '{spoiler_text}'")
+            self.debug_log.debug(f"  Skip sensitive: {skip_sensitive}")
+            self.debug_log.debug(f"  Language: '{lang}', allowlist: {self.config.languages_allowlist}")
+            self.debug_log.debug(f"  Skip language: {skip_language}")
+            self.debug_log.debug(f"  Reblogs: {reblogs_count} (min: {self.config.min_reblogs})")
+            self.debug_log.debug(f"  Skip low reblogs: {skip_low_reblogs}")
+            self.debug_log.debug(f"  Favourites: {favourites_count} (min: {self.config.min_favourites})")
+            self.debug_log.debug(f"  Skip low favourites: {skip_low_favourites}")
+        
+        return should_skip
 
     def score_status(self, status: dict) -> float:
-        tag_score = sum(
+        sid = status.get("id", "unknown")
+        
+        # Calculate hashtag score
+        hashtags = status.get("tags", [])
+        tag_scores = [
             self.config.hashtag_scores.get(t.get("name", "").lower(), 0)
-            for t in status.get("tags", [])
-        )
-        reblogs = math.log1p(status.get("reblogs_count", 0)) * 2
-        favourites = math.log1p(status.get("favourites_count", 0))
-        media_bonus = (
-            self.config.prefer_media if status.get("media_attachments") else 0
-        )
-        return tag_score + reblogs + favourites + media_bonus
+            for t in hashtags
+        ]
+        tag_score = sum(tag_scores)
+        
+        # Calculate engagement scores
+        reblogs_count = status.get("reblogs_count", 0)
+        favourites_count = status.get("favourites_count", 0)
+        reblogs = math.log1p(reblogs_count) * 2
+        favourites = math.log1p(favourites_count)
+        
+        # Calculate media bonus
+        has_media = bool(status.get("media_attachments"))
+        media_bonus = self.config.prefer_media if has_media else 0
+        
+        total_score = tag_score + reblogs + favourites + media_bonus
+        
+        # Debug logging for scoring decision
+        if self.config.debug_decisions:
+            sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
+            self.debug_log.debug(f"STATUS {sid_display} | SCORING: {total_score:.2f}")
+            self.debug_log.debug(f"  Hashtags: {[t.get('name', '') for t in hashtags]}")
+            self.debug_log.debug(f"  Tag scores: {tag_scores} = {tag_score}")
+            self.debug_log.debug(f"  Reblogs: {reblogs_count} -> {reblogs:.2f}")
+            self.debug_log.debug(f"  Favourites: {favourites_count} -> {favourites:.2f}")
+            self.debug_log.debug(f"  Media bonus: {media_bonus} (has_media: {has_media})")
+            self.debug_log.debug(f"  Total: {tag_score} + {reblogs:.2f} + {favourites:.2f} + {media_bonus} = {total_score:.2f}")
+        
+        return total_score
 
     def _normalize_scores(self, entries):
         if not entries:
@@ -182,64 +301,159 @@ class Hype:
 
     def boost(self):
         self.log.info("Run boost")
+        
+        # Debug: Log boost cycle start
+        if self.config.debug_decisions:
+            self.debug_log.info("=== BOOST CYCLE START ===")
+            self.debug_log.info(f"Daily cap: {self.state.get('day_count', 0)}/{self.config.daily_public_cap}")
+            self.debug_log.info(f"Hourly cap: {self.state.get('hour_count', 0)}/{self.config.per_hour_public_cap}")
+            self.debug_log.info(f"Max boosts per run: {self.config.max_boosts_per_run}")
+        
         if not self.config.subscribed_instances:
             self.log.warning("No subscribed instances configured.")
             return
         if not self._public_cap_available():
             self.log.info("Public cap reached. Skipping boosting this cycle.")
             return
+            
+        # Debug: Log instance fetching
+        if self.config.debug_decisions:
+            self.debug_log.info(f"Fetching from {len(self.config.subscribed_instances)} instances:")
+            for inst in self.config.subscribed_instances:
+                self.debug_log.info(f"  - {inst.name} (limit: {inst.limit})")
+                
         collected = []
         for inst in self.config.subscribed_instances:
-            for entry in self._fetch_trending_statuses(inst):
+            statuses = self._fetch_trending_statuses(inst)
+            if self.config.debug_decisions:
+                self.debug_log.info(f"Instance {inst.name}: fetched {len(statuses)} statuses")
+            for entry in statuses:
                 s = entry["status"]
                 entry["score"] = self.score_status(s)
                 collected.append(entry)
+                
+        # Debug: Log collection results
+        if self.config.debug_decisions:
+            self.debug_log.info(f"Total collected statuses: {len(collected)}")
+        
         self._normalize_scores(collected)
         collected.sort(
             key=lambda e: (e["score"], self._created_at(e["status"])),
             reverse=True,
         )
+        
+        # Debug: Log top candidates after sorting
+        if self.config.debug_decisions:
+            self.debug_log.info("=== TOP CANDIDATES AFTER SCORING ===")
+            for i, entry in enumerate(collected[:10]):  # Show top 10
+                status = entry["status"]
+                sid = status.get("id", "unknown")
+                author = status.get("account", {}).get("acct", "unknown")
+                score = entry["score"]
+                sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
+                self.debug_log.info(f"#{i+1}: {sid_display} by {author} - score: {score:.2f}")
+        
         total = len(collected)
         boosted = 0
+        
+        # Debug: Log boost decision loop start
+        if self.config.debug_decisions:
+            self.debug_log.info("=== BOOST DECISION LOOP ===")
+        
         for entry in collected:
             if boosted >= self.config.max_boosts_per_run or not self._public_cap_available():
+                if self.config.debug_decisions:
+                    reason = "max boosts reached" if boosted >= self.config.max_boosts_per_run else "public cap reached"
+                    self.debug_log.info(f"Breaking early: {reason}")
                 break
+                
             trending = entry["status"]
+            sid = trending.get("id", "unknown")
+            instance_name = entry["instance"]
+            score = entry["score"]
+            
+            # Debug: Log candidate evaluation
+            if self.config.debug_decisions:
+                sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
+                self.debug_log.info(f"--- EVALUATING STATUS {sid_display} ---")
+                self.debug_log.info(f"From: {instance_name}, Score: {score:.2f}")
+                
             result = self.client.search_v2(
                 trending["uri"], result_type="statuses"
             ).get("statuses", [])
+            
             if not result:
-                self.log.info(f"{entry['instance']}: skip, not found")
+                self.log.info(f"{instance_name}: skip, not found")
+                if self.config.debug_decisions:
+                    self.debug_log.info(f"DECISION: SKIP - Status not found on our instance")
                 continue
+                
             status = result[0]
+            
             if self._seen_status(status):
-                self.log.info(f"{entry['instance']}: already boosted, skip")
+                self.log.info(f"{instance_name}: already boosted, skip")
+                if self.config.debug_decisions:
+                    self.debug_log.info(f"DECISION: SKIP - Already seen/boosted")
                 continue
-            acct = status["account"]["acct"].split("@")
+                
+            acct = status.get("account", {}).get("acct", "").split("@")
             server = acct[-1] if len(acct) > 1 else ""
             if server in self.config.filtered_instances:
-                self.log.info(f"{entry['instance']}: filtered instance {server}, skip")
+                self.log.info(f"{instance_name}: filtered instance {server}, skip")
+                if self.config.debug_decisions:
+                    self.debug_log.info(f"DECISION: SKIP - Instance {server} is filtered")
                 continue
+                
             if self._should_skip_status(status):
-                self.log.info(f"{entry['instance']}: filtered by rules, skip")
+                self.log.info(f"{instance_name}: filtered by rules, skip")
+                if self.config.debug_decisions:
+                    self.debug_log.info(f"DECISION: SKIP - Filtered by content rules")
                 continue
+                
+            # We're going to boost this status
+            if self.config.debug_decisions:
+                self.debug_log.info(f"DECISION: BOOST - Status passes all checks")
+                author = status.get("account", {}).get("acct", "unknown")
+                content_preview = (status.get("content", "") or "").strip()[:100]
+                if len(content_preview) > 97:
+                    content_preview = content_preview[:97] + "..."
+                self.debug_log.info(f"  Author: {author}")
+                self.debug_log.info(f"  Content: {content_preview}")
+                
             self.client.status_reblog(status)
             self._count_public_boost()
             self._remember_status(status)
             self._save_state()
             boosted += 1
-            self.log.info(f"{entry['instance']}: boosted {boosted}/{total}")
+            self.log.info(f"{instance_name}: boosted {boosted}/{total}")
+            
             if self.state["hour_count"] >= self.config.per_hour_public_cap:
                 self.log.info("Per-hour public cap reached, stopping early.")
+                if self.config.debug_decisions:
+                    self.debug_log.info("EARLY STOP: Per-hour cap reached")
                 break
+        
+        # Debug: Log boost cycle summary
+        if self.config.debug_decisions:
+            self.debug_log.info("=== BOOST CYCLE COMPLETE ===")
+            self.debug_log.info(f"Boosted: {boosted} posts")
+            self.debug_log.info(f"Daily count: {self.state.get('day_count', 0)}/{self.config.daily_public_cap}")
+            self.debug_log.info(f"Hourly count: {self.state.get('hour_count', 0)}/{self.config.per_hour_public_cap}")
 
     def _fetch_trending_statuses(self, instance):
         try:
+            if self.config.debug_decisions:
+                self.debug_log.debug(f"Fetching trending statuses from {instance.name} (limit: {instance.limit})")
             client = self.init_client(instance.name)
             statuses = client.trending_statuses()[: instance.limit]
-            return [{"instance": instance.name, "status": s} for s in statuses]
+            result = [{"instance": instance.name, "status": s} for s in statuses]
+            if self.config.debug_decisions:
+                self.debug_log.debug(f"Successfully fetched {len(result)} statuses from {instance.name}")
+            return result
         except Exception as err:
             self.log.error(f"{instance.name}: error - {err}")
+            if self.config.debug_decisions:
+                self.debug_log.error(f"Failed to fetch from {instance.name}: {err}")
             return []
 
     def start(self):
