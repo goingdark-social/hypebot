@@ -87,6 +87,11 @@ seen_cache_size: 6000
 hashtag_scores:
   python: 10
   rust: 5
+
+# Debug and Logging Options
+log_level: "INFO"  # Set to "DEBUG" for detailed logging
+debug_decisions: false  # Enable detailed decision tracing and reasoning
+logfile_path: ""  # Path to log file for persistent logging (e.g., "/app/logs/hypebot.log")
 ```
 
 `min_reblogs` and `min_favourites` let you ignore posts that haven't gained enough traction yet.
@@ -96,6 +101,37 @@ hashtag_scores:
 `author_diversity_enforced` respects `max_boosts_per_author_per_day` when enabled.
 `max_boosts_per_run` limits how many posts get boosted in each run.
 `max_boosts_per_author_per_day` stops the bot from boosting the same author over and over.
+
+### Debug Logging
+
+For detailed traceability of the bot's decisions, you can enable debug logging:
+
+- `debug_decisions: true` - Enables comprehensive logging of each decision made during the boost process
+- `logfile_path: "/path/to/logfile.log"` - Enables persistent logging to a file in addition to console output
+- `log_level: "DEBUG"` - Sets the logging level to show debug messages
+
+When `debug_decisions` is enabled, the bot will log:
+- Detailed scoring breakdown for each post (hashtag scores, engagement, media bonus)
+- Filtering decisions with specific reasons (content rules, seen status, instance filters)
+- Instance fetching results and counts
+- Complete boost cycle summaries with statistics
+
+Example debug output:
+```
+STATUS 12345678... | SCORING: 21.48
+  Hashtags: ['python', 'mastodon']
+  Tag scores: [10, 5] = 15
+  Reblogs: 5 -> 3.58
+  Favourites: 10 -> 2.40
+  Media bonus: 0.5 (has_media: True)
+  Total: 15 + 3.58 + 2.40 + 0.5 = 21.48
+STATUS 12345678... | FILTER CHECK: KEEP
+  Media attachments: 1
+  Skip no media: False (require_media: False)
+  Language: 'en', allowlist: ['en']
+  Skip language: False
+DECISION: BOOST - Status passes all checks
+```
 
 **Migration note**: The `rotate_instances` option has been removed. The bot now checks every subscribed instance each run, so older configs should drop this field.
 

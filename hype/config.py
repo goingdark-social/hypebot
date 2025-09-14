@@ -32,6 +32,8 @@ class Config:
     bot_account: BotAccount
     interval: int = 60
     log_level: str = "INFO"
+    debug_decisions: bool = False
+    logfile_path: str = ""
     subscribed_instances: List = []
     filtered_instances: List = []
     profile_prefix: str = ""
@@ -84,6 +86,14 @@ class Config:
                 )
                 self.log_level = (
                     config["log_level"] if config.get("log_level") else self.log_level
+                )
+
+                self.debug_decisions = (
+                    config["debug_decisions"] if config.get("debug_decisions") else self.debug_decisions
+                )
+
+                self.logfile_path = (
+                    config["logfile_path"] if config.get("logfile_path") else self.logfile_path
                 )
 
                 self.profile_prefix = (
