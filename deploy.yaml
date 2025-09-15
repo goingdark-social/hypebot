@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hypebot
+  labels:
+    app: hypebot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hypebot
+  template:
+    metadata:
+      labels:
+        app: hypebot
+    spec:
+      # Security context to ensure non-root execution
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: hypebot
+        image: ghcr.io/goingdark-social/hypebot:latest
+        # Container-level security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false  # Set to true if you mount writable volumes for /app/secrets and /app/logs
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: secrets
+          mountPath: /app/secrets
+        - name: logs
+          mountPath: /app/logs
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      volumes:
+      - name: config
+        configMap:
+          name: hypebot-config
+      - name: secrets
+        persistentVolumeClaim:
+          claimName: hypebot-secrets
+      - name: logs
+        emptyDir: {}
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hypebot-config
+data:
+  config.yaml: |
+    interval: 60
+    profile_prefix: "I am boosting trending posts from:"
+    subscribed_instances:
+      chaos.social:
+        limit: 5
+      mastodon.social:
+        limit: 5
+  # Note: auth.yaml should be stored in a Secret, not ConfigMap
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hypebot-secrets
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

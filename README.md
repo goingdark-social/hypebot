@@ -29,6 +29,40 @@ docker pull ghcr.io/goingdark-social/hypebot:pr-123
 docker pull ghcr.io/goingdark-social/hypebot:sha-abcdef1
 ```
 
+### Custom User ID/Group ID
+
+The Docker image supports customizable UID/GID for security and compatibility with different deployment environments:
+
+```bash
+# Build with custom UID/GID (useful for matching host user permissions)
+docker build --build-arg USER_UID=2000 --build-arg USER_GID=3000 -t hypebot-custom .
+
+# Build with custom user name (default is 'hype')
+docker build --build-arg USER_NAME=mybot --build-arg USER_UID=1500 -t hypebot-named .
+```
+
+**Build Arguments:**
+- `USER_UID` - User ID (default: 1000)
+- `USER_GID` - Group ID (default: 1000) 
+- `USER_NAME` - Username (default: hype)
+
+### Kubernetes Deployment
+
+For Kubernetes deployments with Pod Security Standards, use the provided `deploy.yaml`:
+
+```bash
+kubectl apply -f deploy.yaml
+```
+
+The deployment includes:
+- `runAsNonRoot: true` for security
+- Numeric UID/GID specification for compatibility
+- Security context with dropped capabilities
+- Resource limits and requests
+- Proper volume mounts for config, secrets, and logs
+
+**Important for Kubernetes:** The image uses numeric UID:GID format (`USER 1000:1000`) instead of named users to ensure compatibility with `runAsNonRoot: true` security policies.
+
 ## Configuration
 
 Create a `config.yaml` and a `auth.yaml` file in `./config/`. Enter the credentials of your bot-account into `auth.yaml`. You can define which servers to follow and how often to fetch new posts as well as how to automatically change your profile in config.yaml. See the examples below:
