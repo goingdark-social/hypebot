@@ -1,23 +1,34 @@
 # Refresh interval in minutes
-interval: 60
+interval: 30
 
 # Text to add to the bot profile befor the list of subscribed servers
-profile_prefix: "I am boosting trending posts from:"
+profile_prefix: "Official hypebot for goingdark.social, automatically boosting top trending posts from selected Mastodon instances:"
 
 # profile fields to fill in
 fields:
-  code: https://github.com/goingdark-social/hypebot
-  operator: "YOUR HANDLE HERE"
+  instance: https://goingdark.social
+  code: "https://github.com/goingdark-social/hypebot"
+  automation: "Runs every 30 minutes"
+  about: "Boosts trending posts from curated instances"
 
 # Define subscribed instances and
 # their individual limit (top n trending posts)
 # which is again limited by the API to max 20
 subscribed_instances:
-  chaos.social:
+  infosec.exchange:
     limit: 5
   mastodon.social:
+    limit: 4
+  mas.to:
     limit: 5
-
+  fosstodon.org:
+    limit: 6
+  floss.social:
+    limit: 4
+  ioc.exchange:
+    limit: 3
+  mstdn.social:
+    limit: 2
 # Posts originating from filtered instances will never be reposted.
 # The filter checks for the instance of the original posting account, not the
 # server that marked it as a popular post.
@@ -26,6 +37,26 @@ subscribed_instances:
 # other instances
 filtered_instances:
   - example.com
+
+daily_public_cap: 96
+per_hour_public_cap: 5
+seen_cache_size: 6000
+hashtag_scores:
+  homelab: 20
+  selfhosted: 15
+  privacy: 10
+  security: 10
+  cybersecurity: 10
+  kubernetes: 15
+  docker: 15
+min_reblogs: 10
+min_favourites: 10
+
+# Debug logging configuration
+debug_decisions: true
+log_level: "DEBUG"
+#logfile_path: "/app/logs/hypebot.log"
+
 
 daily_public_cap: 48
 per_hour_public_cap: 1
@@ -39,7 +70,6 @@ min_reblogs: 0
 min_favourites: 0
 languages_allowlist:
   - en
-  - sv
 state_path: "/app/secrets/state.json"
 # Number of posts to remember for duplicate detection
 seen_cache_size: 6000
