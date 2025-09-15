@@ -32,6 +32,11 @@ class DummyConfig:
         self.state_path = path
         self.seen_cache_size = 6000
         self.hashtag_scores = {}
+        # Add new configuration attributes
+        self.age_decay_enabled = False
+        self.age_decay_half_life_hours = 24.0
+        self.hashtag_diversity_enforced = False
+        self.max_boosts_per_hashtag_per_run = 1
 
 
 def status_data(i, u):
