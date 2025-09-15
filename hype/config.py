@@ -52,6 +52,12 @@ class Config:
     state_path: str = "/app/secrets/state.json"
     seen_cache_size: int = 6000
     hashtag_scores: dict = {}
+    # Age decay configuration
+    age_decay_enabled: bool = False
+    age_decay_half_life_hours: float = 24.0  # Hours for score to halve due to age
+    # Hashtag diversity configuration  
+    hashtag_diversity_enforced: bool = False
+    max_boosts_per_hashtag_per_run: int = 1
 
     def __init__(self):
         # auth file containing login info
@@ -176,9 +182,25 @@ class Config:
                     config.get("seen_cache_size", self.seen_cache_size)
                 )
                 self.hashtag_scores = {
-                    k.lower(): int(v)
+                    k.lower(): float(v)  # Changed to float to support negative values
                     for k, v in (config.get("hashtag_scores") or {}).items()
                 }
+                
+                # Age decay configuration
+                self.age_decay_enabled = bool(
+                    config.get("age_decay_enabled", self.age_decay_enabled)
+                )
+                self.age_decay_half_life_hours = float(
+                    config.get("age_decay_half_life_hours", self.age_decay_half_life_hours)
+                )
+                
+                # Hashtag diversity configuration
+                self.hashtag_diversity_enforced = bool(
+                    config.get("hashtag_diversity_enforced", self.hashtag_diversity_enforced)
+                )
+                self.max_boosts_per_hashtag_per_run = int(
+                    config.get("max_boosts_per_hashtag_per_run", self.max_boosts_per_hashtag_per_run)
+                )
 
 
 class ConfigException(Exception):

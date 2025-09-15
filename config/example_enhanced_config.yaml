@@ -1,0 +1,37 @@
+# Example configuration showcasing new scoring enhancements
+
+# Age decay configuration - prevents boosting stale content
+age_decay_enabled: true
+age_decay_half_life_hours: 24.0  # Score halves every 24 hours
+
+# Hashtag diversity - prevents multiple posts with same hashtag per run  
+hashtag_diversity_enforced: true
+max_boosts_per_hashtag_per_run: 1  # Only one post per hashtag per boost cycle
+
+# Enhanced hashtag scoring with negative weights
+hashtag_scores:
+  # Positive weights boost preferred content
+  python: 10
+  programming: 8
+  opensource: 5
+  
+  # Zero weights are neutral
+  neutral: 0
+  
+  # Negative weights downrank or exclude content
+  spam: -10
+  offtopic: -5
+  lowquality: -15
+
+# Other existing configuration...
+interval: 60
+daily_public_cap: 48
+per_hour_public_cap: 1
+max_boosts_per_run: 5
+prefer_media: 0.5
+
+subscribed_instances:
+  chaos.social:
+    limit: 5
+  mastodon.social:  
+    limit: 5

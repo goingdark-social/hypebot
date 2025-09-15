@@ -71,6 +71,8 @@ class Hype:
             maxlen=self.config.seen_cache_size,
         )
         self._boosted_today = self.state.get("authors_boosted_today", {})
+        # Track hashtags boosted in current run for diversity enforcement
+        self._hashtags_boosted_this_run = []
         self.log.info("Config loaded")
 
     def login(self):
@@ -146,6 +148,20 @@ class Hype:
         self.state["day_count"] += 1
         self.state["hour_count"] += 1
 
+    def _hashtag_diversity_hit(self, status: dict) -> bool:
+        """Check if hashtag diversity limit is hit for any hashtag in the status."""
+        if not self.config.hashtag_diversity_enforced:
+            return False
+            
+        hashtags = status.get("tags", [])
+        for tag in hashtags:
+            tag_name = tag.get("name", "").lower()
+            # Count how many times this hashtag has been boosted this run
+            hashtag_count = self._hashtags_boosted_this_run.count(tag_name)
+            if hashtag_count >= self.config.max_boosts_per_hashtag_per_run:
+                return True
+        return False
+
     def _seen_status(self, status: dict) -> bool:
         sid = status.get("id", "unknown")
         url = status.get("url") or status.get("uri")
@@ -160,8 +176,9 @@ class Hype:
             and self._boosted_today.get(author, 0)
             >= self.config.max_boosts_per_author_per_day
         )
+        hashtag_limit_hit = self._hashtag_diversity_hit(status)
         
-        is_seen = sid_seen or url_seen or already_reblogged or author_limit_hit
+        is_seen = sid_seen or url_seen or already_reblogged or author_limit_hit or hashtag_limit_hit
         
         # Debug logging for seen status decision
         if self.config.debug_decisions:
@@ -174,6 +191,11 @@ class Hype:
             if self.config.author_diversity_enforced:
                 self.debug_log.debug(f"  Author boosts today: {self._boosted_today.get(author, 0)}/{self.config.max_boosts_per_author_per_day}")
                 self.debug_log.debug(f"  Author limit hit: {author_limit_hit}")
+            if self.config.hashtag_diversity_enforced:
+                hashtags = [tag.get("name", "").lower() for tag in status.get("tags", [])]
+                self.debug_log.debug(f"  Hashtags: {hashtags}")
+                self.debug_log.debug(f"  Hashtags boosted this run: {self._hashtags_boosted_this_run}")
+                self.debug_log.debug(f"  Hashtag limit hit: {hashtag_limit_hit}")
         
         return is_seen
 
@@ -186,6 +208,13 @@ class Hype:
             self._seen.append(url)
         self._boosted_today[author] = self._boosted_today.get(author, 0) + 1
         self.state["authors_boosted_today"] = self._boosted_today
+        
+        # Track hashtags for diversity enforcement in current run
+        if self.config.hashtag_diversity_enforced:
+            hashtags = status.get("tags", [])
+            for tag in hashtags:
+                tag_name = tag.get("name", "").lower()
+                self._hashtags_boosted_this_run.append(tag_name)
 
     def _should_skip_status(self, status: dict) -> bool:
         sid = status.get("id", "unknown")
@@ -244,7 +273,7 @@ class Hype:
     def score_status(self, status: dict) -> float:
         sid = status.get("id", "unknown")
         
-        # Calculate hashtag score
+        # Calculate hashtag score (now supports negative values)
         hashtags = status.get("tags", [])
         tag_scores = [
             self.config.hashtag_scores.get(t.get("name", "").lower(), 0)
@@ -262,7 +291,22 @@ class Hype:
         has_media = bool(status.get("media_attachments"))
         media_bonus = self.config.prefer_media if has_media else 0
         
-        total_score = tag_score + reblogs + favourites + media_bonus
+        # Calculate base score
+        base_score = tag_score + reblogs + favourites + media_bonus
+        
+        # Apply age decay if enabled
+        age_penalty = 0
+        if self.config.age_decay_enabled:
+            created_at = self._created_at(status)
+            now = datetime.now(timezone.utc)
+            age_hours = (now - created_at).total_seconds() / 3600
+            
+            # Calculate decay factor using half-life formula: decay = 0.5^(age/half_life)
+            if age_hours > 0 and self.config.age_decay_half_life_hours > 0:
+                decay_factor = 0.5 ** (age_hours / self.config.age_decay_half_life_hours)
+                age_penalty = base_score * (1 - decay_factor)
+        
+        total_score = base_score - age_penalty
         
         # Debug logging for scoring decision
         if self.config.debug_decisions:
@@ -273,7 +317,12 @@ class Hype:
             self.debug_log.debug(f"  Reblogs: {reblogs_count} -> {reblogs:.2f}")
             self.debug_log.debug(f"  Favourites: {favourites_count} -> {favourites:.2f}")
             self.debug_log.debug(f"  Media bonus: {media_bonus} (has_media: {has_media})")
-            self.debug_log.debug(f"  Total: {tag_score} + {reblogs:.2f} + {favourites:.2f} + {media_bonus} = {total_score:.2f}")
+            if self.config.age_decay_enabled:
+                created_at = self._created_at(status)
+                age_hours = (datetime.now(timezone.utc) - created_at).total_seconds() / 3600
+                decay_factor = 0.5 ** (age_hours / self.config.age_decay_half_life_hours) if age_hours > 0 else 1
+                self.debug_log.debug(f"  Age: {age_hours:.2f}h, decay factor: {decay_factor:.3f}, penalty: {age_penalty:.2f}")
+            self.debug_log.debug(f"  Total: {base_score:.2f} - {age_penalty:.2f} = {total_score:.2f}")
         
         return total_score
 
@@ -302,12 +351,17 @@ class Hype:
     def boost(self):
         self.log.info("Run boost")
         
+        # Reset hashtag tracking for current run
+        self._hashtags_boosted_this_run = []
+        
         # Debug: Log boost cycle start
         if self.config.debug_decisions:
             self.debug_log.info("=== BOOST CYCLE START ===")
             self.debug_log.info(f"Daily cap: {self.state.get('day_count', 0)}/{self.config.daily_public_cap}")
             self.debug_log.info(f"Hourly cap: {self.state.get('hour_count', 0)}/{self.config.per_hour_public_cap}")
             self.debug_log.info(f"Max boosts per run: {self.config.max_boosts_per_run}")
+            if self.config.hashtag_diversity_enforced:
+                self.debug_log.info(f"Hashtag diversity: max {self.config.max_boosts_per_hashtag_per_run} per hashtag per run")
         
         if not self.config.subscribed_instances:
             self.log.warning("No subscribed instances configured.")
