@@ -8,6 +8,7 @@ import math
 
 import schedule
 from mastodon import Mastodon
+from mastodon.errors import MastodonAPIError
 
 from .config import Config
 
@@ -432,9 +433,15 @@ class Hype:
                 self.debug_log.info(f"--- EVALUATING STATUS {sid_display} ---")
                 self.debug_log.info(f"From: {instance_name}, Score: {score:.2f}")
                 
-            result = self.client.search_v2(
-                trending["uri"], result_type="statuses"
-            ).get("statuses", [])
+            try:
+                result = self.client.search_v2(
+                    trending["uri"], result_type="statuses"
+                ).get("statuses", [])
+            except MastodonAPIError as e:
+                self.log.warning(f"{instance_name}: API error during search, skipping - {e}")
+                if self.config.debug_decisions:
+                    self.debug_log.warning(f"DECISION: SKIP - API error during search: {e}")
+                continue
             
             if not result:
                 self.log.info(f"{instance_name}: skip, not found")
