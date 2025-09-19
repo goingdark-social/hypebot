@@ -37,6 +37,10 @@ class DummyConfig:
         self.age_decay_half_life_hours = 24.0
         self.hashtag_diversity_enforced = False
         self.max_boosts_per_hashtag_per_run = 1
+        # Spam detection configuration
+        self.spam_emoji_penalty = 0
+        self.spam_emoji_threshold = 2
+        self.spam_link_penalty = 0
 
 
 def status_data(i, u):
@@ -50,6 +54,7 @@ def status_data(i, u):
         "sensitive": False,
         "spoiler_text": "",
         "language": "en",
+        "content": "",  # Add content field for spam detection tests
     }
 
 

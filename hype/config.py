@@ -58,6 +58,10 @@ class Config:
     # Hashtag diversity configuration  
     hashtag_diversity_enforced: bool = False
     max_boosts_per_hashtag_per_run: int = 1
+    # Spam detection configuration
+    spam_emoji_penalty: float = 0  # Points to reduce per emoji over the threshold
+    spam_emoji_threshold: int = 2  # Number of emojis before penalty applies
+    spam_link_penalty: float = 0  # Points to reduce when links are present
 
     def __init__(self):
         # auth file containing login info
@@ -200,6 +204,17 @@ class Config:
                 )
                 self.max_boosts_per_hashtag_per_run = int(
                     config.get("max_boosts_per_hashtag_per_run", self.max_boosts_per_hashtag_per_run)
+                )
+                
+                # Spam detection configuration
+                self.spam_emoji_penalty = float(
+                    config.get("spam_emoji_penalty", self.spam_emoji_penalty)
+                )
+                self.spam_emoji_threshold = int(
+                    config.get("spam_emoji_threshold", self.spam_emoji_threshold)
+                )
+                self.spam_link_penalty = float(
+                    config.get("spam_link_penalty", self.spam_link_penalty)
                 )
 
 
