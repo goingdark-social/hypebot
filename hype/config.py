@@ -62,6 +62,10 @@ class Config:
     spam_emoji_penalty: float = 0  # Points to reduce per emoji over the threshold
     spam_emoji_threshold: int = 2  # Number of emojis before penalty applies
     spam_link_penalty: float = 0  # Points to reduce when links are present
+    # Quality threshold configuration
+    min_score_threshold: float = 0  # Minimum normalized score (0-100) required for boosting
+    # Related hashtag scoring configuration
+    related_hashtags: dict = {}  # Map hashtag -> {related_term: partial_score_multiplier}
 
     def __init__(self):
         # auth file containing login info
@@ -216,6 +220,14 @@ class Config:
                 self.spam_link_penalty = float(
                     config.get("spam_link_penalty", self.spam_link_penalty)
                 )
+                
+                # Quality threshold configuration
+                self.min_score_threshold = float(
+                    config.get("min_score_threshold", self.min_score_threshold)
+                )
+                
+                # Related hashtag scoring configuration
+                self.related_hashtags = config.get("related_hashtags", self.related_hashtags) or {}
 
 
 class ConfigException(Exception):

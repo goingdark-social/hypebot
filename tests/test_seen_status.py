@@ -41,6 +41,10 @@ class DummyConfig:
         self.spam_emoji_penalty = 0
         self.spam_emoji_threshold = 2
         self.spam_link_penalty = 0
+        # Quality threshold configuration
+        self.min_score_threshold = 0
+        # Related hashtag scoring configuration
+        self.related_hashtags = {}
 
 
 def status_data(i, u):
