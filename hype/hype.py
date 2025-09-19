@@ -298,6 +298,37 @@ class Hype:
         url_pattern = re.compile(r'https?://[^\s<>"]+|www\.[^\s<>"]+')
         return bool(url_pattern.search(text))
 
+    def _calculate_related_hashtag_score(self, status: dict) -> float:
+        """Calculate bonus score for hashtags related to configured keywords."""
+        if not self.config.related_hashtags:
+            return 0
+        
+        # Get post content for analysis
+        content = (status.get("content", "") or "").lower()
+        # Also check hashtags themselves
+        hashtags = status.get("tags", [])
+        hashtag_names = [t.get("name", "").lower() for t in hashtags]
+        all_text = content + " " + " ".join(hashtag_names)
+        
+        related_score = 0
+        for main_hashtag, related_terms in self.config.related_hashtags.items():
+            main_hashtag_lower = main_hashtag.lower()
+            # Check if the main hashtag is present
+            if main_hashtag_lower in hashtag_names:
+                continue  # Already scored in regular hashtag scoring
+            
+            # Check for related terms in content
+            for related_term, multiplier in related_terms.items():
+                if related_term.lower() in all_text:
+                    # Get the base score for the main hashtag
+                    base_score = self.config.hashtag_scores.get(main_hashtag_lower, 0)
+                    if base_score > 0:  # Only apply bonus for positive base scores
+                        bonus = base_score * float(multiplier)
+                        related_score += bonus
+                        break  # Only apply one bonus per main hashtag
+        
+        return related_score
+
     def score_status(self, status: dict) -> float:
         sid = status.get("id", "unknown")
         
@@ -308,6 +339,10 @@ class Hype:
             for t in hashtags
         ]
         tag_score = sum(tag_scores)
+        
+        # Calculate related hashtag bonuses
+        related_score = self._calculate_related_hashtag_score(status)
+        tag_score += related_score
         
         # Calculate engagement scores
         reblogs_count = status.get("reblogs_count", 0)
@@ -355,7 +390,11 @@ class Hype:
             sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
             self.debug_log.debug(f"STATUS {sid_display} | SCORING: {total_score:.2f}")
             self.debug_log.debug(f"  Hashtags: {[t.get('name', '') for t in hashtags]}")
-            self.debug_log.debug(f"  Tag scores: {tag_scores} = {tag_score}")
+            direct_tag_score = sum(tag_scores)
+            self.debug_log.debug(f"  Direct tag scores: {tag_scores} = {direct_tag_score}")
+            if related_score > 0:
+                self.debug_log.debug(f"  Related hashtag bonus: {related_score:.2f}")
+            self.debug_log.debug(f"  Total tag score: {tag_score:.2f}")
             self.debug_log.debug(f"  Reblogs: {reblogs_count} -> {reblogs:.2f}")
             self.debug_log.debug(f"  Favourites: {favourites_count} -> {favourites:.2f}")
             self.debug_log.debug(f"  Media bonus: {media_bonus} (has_media: {has_media})")
@@ -436,15 +475,33 @@ class Hype:
         if self.config.debug_decisions:
             self.debug_log.info(f"Total collected statuses: {len(collected)}")
         
+        # Apply quality threshold filtering on raw scores (before normalization)
+        if self.config.min_score_threshold > 0:
+            qualified_collected = [
+                entry for entry in collected 
+                if entry["score"] >= self.config.min_score_threshold
+            ]
+            if self.config.debug_decisions:
+                filtered_count = len(collected) - len(qualified_collected)
+                self.debug_log.info(f"Quality threshold filter (raw scores): {filtered_count} posts below {self.config.min_score_threshold} threshold")
+            collected = qualified_collected
+        
+        # Check if we have any qualifying content
+        if not collected:
+            self.log.info("No posts meet the quality threshold. Skipping boost cycle.")
+            if self.config.debug_decisions:
+                self.debug_log.info("BOOST CYCLE SKIPPED: No qualifying content")
+            return
+
         self._normalize_scores(collected)
         collected.sort(
             key=lambda e: (e["score"], self._created_at(e["status"])),
             reverse=True,
         )
         
-        # Debug: Log top candidates after sorting
+        # Debug: Log top candidates after scoring and filtering
         if self.config.debug_decisions:
-            self.debug_log.info("=== TOP CANDIDATES AFTER SCORING ===")
+            self.debug_log.info("=== TOP CANDIDATES AFTER SCORING AND FILTERING ===")
             for i, entry in enumerate(collected[:10]):  # Show top 10
                 status = entry["status"]
                 sid = status.get("id", "unknown")
