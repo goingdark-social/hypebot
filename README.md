@@ -122,6 +122,11 @@ hashtag_scores:
   python: 10
   rust: 5
 
+# Spam Detection Options
+spam_emoji_penalty: 1.0  # Points to reduce per emoji over the threshold
+spam_emoji_threshold: 2  # Number of emojis before penalty applies
+spam_link_penalty: 0.5   # Points to reduce when links are present
+
 # Debug and Logging Options
 log_level: "INFO"  # Set to "DEBUG" for detailed logging
 debug_decisions: false  # Enable detailed decision tracing and reasoning
@@ -135,6 +140,16 @@ logfile_path: ""  # Path to log file for persistent logging (e.g., "/app/logs/hy
 `author_diversity_enforced` respects `max_boosts_per_author_per_day` when enabled.
 `max_boosts_per_run` limits how many posts get boosted in each run.
 `max_boosts_per_author_per_day` stops the bot from boosting the same author over and over.
+
+### Spam Detection
+
+The bot includes configurable spam detection to reduce scores for potentially promotional content:
+
+- `spam_emoji_penalty` - Points to reduce per emoji over the threshold (default: 0, disabled)
+- `spam_emoji_threshold` - Number of emojis before penalty applies (default: 2)
+- `spam_link_penalty` - Points to reduce when links are detected in posts (default: 0, disabled)
+
+When enabled, posts with excessive emojis or links receive score penalties to reduce their boost priority. This helps avoid promoting content that may be spam-like or overly promotional.
 
 ### Debug Logging
 

@@ -1,6 +1,7 @@
 import json
 import logging
 import os.path
+import re
 import time
 from collections import deque
 from datetime import datetime, timezone
@@ -271,6 +272,32 @@ class Hype:
         
         return should_skip
 
+    def _count_emojis(self, text: str) -> int:
+        """Count Unicode emojis in text content."""
+        if not text:
+            return 0
+        # Unicode emoji regex pattern - match individual emojis
+        emoji_pattern = re.compile(
+            "["
+            "\U0001F600-\U0001F64F"  # emoticons
+            "\U0001F300-\U0001F5FF"  # symbols & pictographs
+            "\U0001F680-\U0001F6FF"  # transport & map symbols
+            "\U0001F1E0-\U0001F1FF"  # flags (iOS)
+            "\U00002702-\U000027B0"  # dingbats
+            "\U000024C2-\U0001F251"
+            "]"  # Remove the + to match individual emojis
+        )
+        matches = emoji_pattern.findall(text)
+        return len(matches)
+    
+    def _has_links(self, text: str) -> bool:
+        """Check if text contains URLs."""
+        if not text:
+            return False
+        # Simple URL detection pattern
+        url_pattern = re.compile(r'https?://[^\s<>"]+|www\.[^\s<>"]+')
+        return bool(url_pattern.search(text))
+
     def score_status(self, status: dict) -> float:
         sid = status.get("id", "unknown")
         
@@ -292,8 +319,22 @@ class Hype:
         has_media = bool(status.get("media_attachments"))
         media_bonus = self.config.prefer_media if has_media else 0
         
+        # Calculate spam penalties
+        content = status.get("content", "") or ""
+        spam_penalty = 0
+        
+        # Emoji spam detection
+        emoji_count = self._count_emojis(content)
+        if emoji_count > self.config.spam_emoji_threshold:
+            excess_emojis = emoji_count - self.config.spam_emoji_threshold
+            spam_penalty += excess_emojis * self.config.spam_emoji_penalty
+        
+        # Link penalty
+        if self._has_links(content):
+            spam_penalty += self.config.spam_link_penalty
+        
         # Calculate base score
-        base_score = tag_score + reblogs + favourites + media_bonus
+        base_score = tag_score + reblogs + favourites + media_bonus - spam_penalty
         
         # Apply age decay if enabled
         age_penalty = 0
@@ -318,6 +359,10 @@ class Hype:
             self.debug_log.debug(f"  Reblogs: {reblogs_count} -> {reblogs:.2f}")
             self.debug_log.debug(f"  Favourites: {favourites_count} -> {favourites:.2f}")
             self.debug_log.debug(f"  Media bonus: {media_bonus} (has_media: {has_media})")
+            if spam_penalty > 0:
+                emoji_count = self._count_emojis(content)
+                has_links = self._has_links(content)
+                self.debug_log.debug(f"  Spam detection: {emoji_count} emojis, has_links: {has_links}, penalty: {spam_penalty:.2f}")
             if self.config.age_decay_enabled:
                 created_at = self._created_at(status)
                 age_hours = (datetime.now(timezone.utc) - created_at).total_seconds() / 3600
