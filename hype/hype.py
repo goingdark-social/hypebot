@@ -244,8 +244,10 @@ class Hype:
         # Check minimum engagement
         reblogs_count = status.get("reblogs_count", 0)
         favourites_count = status.get("favourites_count", 0)
+        replies_count = status.get("replies_count", 0)
         skip_low_reblogs = reblogs_count < self.config.min_reblogs
         skip_low_favourites = favourites_count < self.config.min_favourites
+        skip_low_replies = replies_count < self.config.min_replies
         
         should_skip = (
             skip_no_media
@@ -253,6 +255,7 @@ class Hype:
             or skip_language
             or skip_low_reblogs
             or skip_low_favourites
+            or skip_low_replies
         )
         
         # Debug logging for filtering decision
@@ -269,6 +272,8 @@ class Hype:
             self.debug_log.debug(f"  Skip low reblogs: {skip_low_reblogs}")
             self.debug_log.debug(f"  Favourites: {favourites_count} (min: {self.config.min_favourites})")
             self.debug_log.debug(f"  Skip low favourites: {skip_low_favourites}")
+            self.debug_log.debug(f"  Replies: {replies_count} (min: {self.config.min_replies})")
+            self.debug_log.debug(f"  Skip low replies: {skip_low_replies}")
         
         return should_skip
 
@@ -347,8 +352,10 @@ class Hype:
         # Calculate engagement scores
         reblogs_count = status.get("reblogs_count", 0)
         favourites_count = status.get("favourites_count", 0)
+        replies_count = status.get("replies_count", 0)
         reblogs = math.log1p(reblogs_count) * 2
         favourites = math.log1p(favourites_count)
+        replies = math.log1p(replies_count) * 1.5  # Weight replies between favorites and reblogs
         
         # Calculate media bonus
         has_media = bool(status.get("media_attachments"))
@@ -369,7 +376,7 @@ class Hype:
             spam_penalty += self.config.spam_link_penalty
         
         # Calculate base score
-        base_score = tag_score + reblogs + favourites + media_bonus - spam_penalty
+        base_score = tag_score + reblogs + favourites + replies + media_bonus - spam_penalty
         
         # Apply age decay if enabled
         age_penalty = 0
@@ -397,6 +404,7 @@ class Hype:
             self.debug_log.debug(f"  Total tag score: {tag_score:.2f}")
             self.debug_log.debug(f"  Reblogs: {reblogs_count} -> {reblogs:.2f}")
             self.debug_log.debug(f"  Favourites: {favourites_count} -> {favourites:.2f}")
+            self.debug_log.debug(f"  Replies: {replies_count} -> {replies:.2f}")
             self.debug_log.debug(f"  Media bonus: {media_bonus} (has_media: {has_media})")
             if spam_penalty > 0:
                 emoji_count = self._count_emojis(content)

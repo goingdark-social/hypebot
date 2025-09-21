@@ -28,6 +28,7 @@ class DummyConfig:
         self.skip_sensitive_without_cw = False
         self.min_reblogs = 0
         self.min_favourites = 0
+        self.min_replies = 0
         self.languages_allowlist = []
         self.state_path = path
         self.seen_cache_size = 6000
