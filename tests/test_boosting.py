@@ -105,7 +105,7 @@ def test_equal_score_prefers_newer(tmp_path, use_datetime):
     newer = status_data("2", "https://a/2")
     newer["created_at"] = ts("2024-01-02T00:00:00Z")
 
-    def search(uri, result_type=None):
+    def search(uri, result_type=None, resolve=None):
         return {"statuses": [newer if uri == "https://a/2" else older]}
 
     client.search_v2.side_effect = search
