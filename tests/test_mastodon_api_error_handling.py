@@ -170,3 +170,44 @@ def test_continues_after_api_error_with_multiple_statuses(tmp_path):
     boosted_calls = bot_client.status_reblog.call_args_list
     assert boosted_calls[0][0][0]["uri"] == "https://remote.instance/status/1"
     assert boosted_calls[1][0][0]["uri"] == "https://remote.instance/status/3"
+
+
+def test_handles_401_unauthorized_search_error(tmp_path):
+    """Test that 401 Unauthorized errors during search_v2 are handled gracefully."""
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    inst = types.SimpleNamespace(name="test_instance", limit=1)
+    cfg.subscribed_instances = [inst]
+    hype = Hype(cfg)
+    
+    # Mock trending statuses from remote instance
+    trending = [
+        {
+            "uri": "https://remote.instance/status/1",
+            "reblogs_count": 5,
+            "favourites_count": 10,
+            "created_at": "2024-01-01T00:00:00Z",
+        },
+    ]
+    
+    # Mock the remote instance client that fetches trending statuses
+    remote_client = MagicMock()
+    remote_client.trending_statuses.return_value = trending
+    hype.init_client = MagicMock(return_value=remote_client)
+    
+    # Mock the bot's own client where search_v2 will fail with 401 Unauthorized
+    bot_client = MagicMock()
+    bot_client.search_v2.side_effect = MastodonAPIError(
+        "Mastodon API returned error", 401, "Unauthorized", 
+        "Search queries that resolve remote resources are not supported without authentication"
+    )
+    
+    hype.client = bot_client
+    
+    # The boost cycle should complete without crashing  
+    hype.boost()
+    
+    # Verify that search_v2 was called once
+    assert bot_client.search_v2.call_count == 1
+    
+    # Verify that no status was boosted due to the 401 error
+    assert bot_client.status_reblog.call_count == 0
