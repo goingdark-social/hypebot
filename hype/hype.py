@@ -9,7 +9,7 @@ import math
 
 import schedule
 from mastodon import Mastodon
-from mastodon.errors import MastodonAPIError
+from mastodon.errors import MastodonAPIError, MastodonNotFoundError
 
 from .config import Config
 
@@ -441,6 +441,123 @@ class Hype:
             return datetime.fromtimestamp(0, timezone.utc)
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
+    def _fetch_status_from_remote(self, status_id: str, instance_name: str) -> dict:
+        """
+        Fetch a status directly from a remote instance using GET /api/v1/statuses/:id.
+        This validates the status exists and returns its canonical data.
+        
+        Returns the status dict if successful, None otherwise.
+        """
+        try:
+            # Create a client for the remote instance (unauthenticated, public endpoint)
+            remote_client = self.init_client(instance_name)
+            status = remote_client.status(status_id)
+            
+            if self.config.debug_decisions:
+                sid_display = str(status_id)[:8] + "..." if len(str(status_id)) > 8 else str(status_id)
+                self.debug_log.debug(f"Remote fetch successful for {sid_display} from {instance_name}")
+            
+            return status
+        except MastodonNotFoundError:
+            if self.config.debug_decisions:
+                sid_display = str(status_id)[:8] + "..." if len(str(status_id)) > 8 else str(status_id)
+                self.debug_log.info(f"Remote status {sid_display} not found (404) on {instance_name}")
+            return None
+        except MastodonAPIError as e:
+            self.log.warning(f"{instance_name}: Remote fetch error for status {status_id} - {e}")
+            if self.config.debug_decisions:
+                self.debug_log.warning(f"Remote fetch API error: {e}")
+            return None
+        except Exception as e:
+            self.log.error(f"{instance_name}: Unexpected error fetching status {status_id} - {e}")
+            if self.config.debug_decisions:
+                self.debug_log.error(f"Remote fetch unexpected error: {e}")
+            return None
+
+    def _get_or_federate_status(self, status: dict, instance_name: str):
+        """
+        Get a status from local DB or federate it if necessary.
+        
+        Flow:
+        1. Try to find status locally via search (without resolve)
+        2. If found, return it
+        3. If not found and federate_missing_statuses is enabled, try search with resolve=True
+        4. Return the federated status
+        
+        Returns status dict if successful, None otherwise.
+        """
+        status_id = status.get("id", "unknown")
+        sid_display = str(status_id)[:8] + "..." if len(str(status_id)) > 8 else str(status_id)
+        uri = status.get("uri") or status.get("url")
+        
+        if not uri:
+            self.log.warning(f"{instance_name}: Cannot process status {status_id}, missing URI")
+            if self.config.debug_decisions:
+                self.debug_log.warning(f"DECISION: SKIP - Missing URI")
+            return None
+        
+        # Attempt 1: Check if status is already in local DB (search without resolve)
+        try:
+            result = self.client.search_v2(
+                uri, result_type="statuses", resolve=False
+            ).get("statuses", [])
+            
+            if result:
+                # Status found in local DB, return it
+                local_status = result[0]
+                if self.config.debug_decisions:
+                    self.debug_log.debug(f"Status {sid_display} found in local DB")
+                return local_status
+        except MastodonAPIError as e:
+            # Search failed, but we can continue to federation attempt
+            if self.config.debug_decisions:
+                self.debug_log.debug(f"Local search error for {sid_display}: {e}")
+        
+        # Attempt 2: Status not in local DB
+        if not self.config.federate_missing_statuses:
+            # Federation disabled, skip this status
+            self.log.info(f"{instance_name}: skip, not federated (set federate_missing_statuses=true to enable)")
+            if self.config.debug_decisions:
+                self.debug_log.info(f"DECISION: SKIP - Not federated and federation disabled")
+            return None
+        
+        # Attempt 3: Try to federate via search with resolve=True
+        if self.config.debug_decisions:
+            self.debug_log.debug(f"Attempting to federate {sid_display} via search(resolve=True)")
+        
+        try:
+            result = self.client.search_v2(
+                uri, result_type="statuses", resolve=True
+            ).get("statuses", [])
+            
+            if not result:
+                # Search with resolve=True returned empty
+                self.log.info(f"{instance_name}: skip, resolve-empty (status exists remotely but couldn't be federated)")
+                if self.config.debug_decisions:
+                    self.debug_log.info(f"DECISION: SKIP - remote-200-local-resolve-empty")
+                return None
+            
+            # Federation succeeded, return the federated status
+            federated_status = result[0]
+            if self.config.debug_decisions:
+                self.debug_log.debug(f"Federation successful for {sid_display}")
+            
+            return federated_status
+            
+        except MastodonAPIError as e:
+            self.log.warning(f"{instance_name}: Federation attempt failed - {e}")
+            if self.config.debug_decisions:
+                if "401" in str(e) or "Unauthorized" in str(e):
+                    self.debug_log.warning(f"DECISION: SKIP - token-scope-missing or unauthorized")
+                else:
+                    self.debug_log.warning(f"DECISION: SKIP - resolve-rejected ({e})")
+            return None
+        except Exception as e:
+            self.log.error(f"{instance_name}: Unexpected error during federation - {e}")
+            if self.config.debug_decisions:
+                self.debug_log.error(f"DECISION: SKIP - federation-error ({e})")
+            return None
+
     def boost(self):
         self.log.info("Run boost")
         
@@ -539,28 +656,16 @@ class Hype:
             
             # Debug: Log candidate evaluation
             if self.config.debug_decisions:
-                sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
+                sid_display = str(sid)[:8] + "..." if len(str(sid)) > 8 else str(sid)
                 self.debug_log.info(f"--- EVALUATING STATUS {sid_display} ---")
                 self.debug_log.info(f"From: {instance_name}, Score: {score:.2f}")
-                
-            try:
-                result = self.client.search_v2(
-                    trending["uri"], result_type="statuses", resolve=True
-                ).get("statuses", [])
-            except MastodonAPIError as e:
-                self.log.warning(f"{instance_name}: API error during search, skipping - {e}")
-                if self.config.debug_decisions:
-                    self.debug_log.warning(f"DECISION: SKIP - API error during search: {e}")
+            
+            # Step 1: Get the status from local DB or federate it
+            status = self._get_or_federate_status(trending, instance_name)
+            if not status:
                 continue
             
-            if not result:
-                self.log.info(f"{instance_name}: skip, not found")
-                if self.config.debug_decisions:
-                    self.debug_log.info(f"DECISION: SKIP - Status not found on our instance")
-                continue
-                
-            status = result[0]
-            
+            # Step 2: Apply filters on the retrieved status
             if self._seen_status(status):
                 self.log.info(f"{instance_name}: already boosted, skip")
                 if self.config.debug_decisions:
@@ -581,7 +686,7 @@ class Hype:
                     self.debug_log.info(f"DECISION: SKIP - Filtered by content rules")
                 continue
                 
-            # We're going to boost this status
+            # Step 3: Boost the status
             if self.config.debug_decisions:
                 self.debug_log.info(f"DECISION: BOOST - Status passes all checks")
                 author = status.get("account", {}).get("acct", "unknown")
@@ -590,8 +695,15 @@ class Hype:
                     content_preview = content_preview[:97] + "..."
                 self.debug_log.info(f"  Author: {author}")
                 self.debug_log.info(f"  Content: {content_preview}")
-                
-            self.client.status_reblog(status)
+            
+            try:
+                self.client.status_reblog(status)
+            except MastodonAPIError as e:
+                self.log.warning(f"{instance_name}: Reblog failed - {e}")
+                if self.config.debug_decisions:
+                    self.debug_log.warning(f"DECISION: SKIP - reblog-error ({e})")
+                continue
+            
             self._count_public_boost()
             self._remember_status(status)
             self._save_state()
