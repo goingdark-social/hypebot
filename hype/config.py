@@ -68,8 +68,6 @@ class Config:
     min_score_threshold: float = 0  # Minimum normalized score (0-100) required for boosting
     # Related hashtag scoring configuration
     related_hashtags: dict = {}  # Map hashtag -> {related_term: partial_score_multiplier}
-    # Proactive federation configuration
-    federate_missing_statuses: bool = False  # Enable fetching unfederated statuses from remote instances
 
     def __init__(self):
         # Helper method to get config values with environment variable override
@@ -255,9 +253,6 @@ class Config:
             
             # Related hashtag scoring configuration (complex object - only from config file for now)
             self.related_hashtags = config.get("related_hashtags", self.related_hashtags) or {}
-            
-            # Proactive federation configuration
-            self.federate_missing_statuses = get_config_value("HYPE_FEDERATE_MISSING_STATUSES", config, "federate_missing_statuses", self.federate_missing_statuses, bool)
 
 
 class ConfigException(Exception):

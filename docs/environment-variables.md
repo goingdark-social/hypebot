@@ -52,7 +52,6 @@ All configuration parameters can now be overridden using environment variables w
 - `HYPE_LANGUAGES_ALLOWLIST` - Comma-separated list of allowed languages (default: [])
 - `HYPE_STATE_PATH` - Path to state file (default: "/app/secrets/state.json")
 - `HYPE_SEEN_CACHE_SIZE` - Size of seen posts cache (default: 6000)
-- `HYPE_FEDERATE_MISSING_STATUSES` - **NEW**: Enable proactive federation of unfederated posts (default: false)
 
 ### Complex Configuration via Environment Variables
 
@@ -122,56 +121,18 @@ The `min_replies` parameter (environment variable: `HYPE_MIN_REPLIES`) allows yo
 
 Posts with fewer replies than the threshold will be filtered out before scoring and boosting consideration.
 
-## Proactive Federation Feature
+## Proactive Federation
 
-The `federate_missing_statuses` parameter (environment variable: `HYPE_FEDERATE_MISSING_STATUSES`) enables the bot to actively federate trending posts that aren't yet in your local instance's database.
+The bot automatically federates unfederated trending posts from remote instances. When a trending post is not yet in your local instance's database, the bot will actively federate it using `search_v2(resolve=True)` before boosting.
 
 ### How It Works
 
-1. **Default Behavior** (`federate_missing_statuses: false`):
-   - Bot only boosts posts that are already federated to your local instance
-   - Uses `search_v2(resolve=False)` which only searches the local database
-   - Safe and conservative - no remote API calls for unfederated posts
+The bot uses the following flow for each trending post:
+1. Try direct reblog (works if post is already in local database)
+2. If reblog returns 404 (post not in local DB), use `search_v2(resolve=True)` to federate it
+3. Retry reblog after successful federation
 
-2. **Proactive Federation** (`federate_missing_statuses: true`):
-   - Bot attempts to federate unfederated trending posts
-   - Flow: Check local DB → If not found, use `search_v2(resolve=True)` → Boost federated post
-   - Helps seed federation by pulling in trending content from remote instances
-
-### When to Enable
-
-**Enable (`true`) if you want to:**
-- Actively seed federation with trending content from other instances
-- Help smaller instances discover content from the broader Fediverse
-- Maximize content discovery for your users
-
-**Keep disabled (`false`) if you prefer:**
-- Conservative behavior - only boost already-federated content
-- Minimize API calls to remote instances
-- Reduce potential for rate limiting issues
-
-### Configuration Examples
-
-**Config file:**
-```yaml
-# Enable proactive federation
-federate_missing_statuses: true
-```
-
-**Environment variable:**
-```bash
-HYPE_FEDERATE_MISSING_STATUSES=true
-```
-
-**Kubernetes ConfigMap:**
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: hypebot-config
-data:
-  HYPE_FEDERATE_MISSING_STATUSES: "true"
-```
+This helps seed federation by pulling in trending content from remote instances, which is especially useful for smaller instances that want to increase content discovery for their users.
 
 ### Error Handling
 

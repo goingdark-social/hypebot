@@ -506,13 +506,6 @@ class Hype:
             if self.config.debug_decisions:
                 self.debug_log.debug(f"Status {sid_display} not in local DB (404 on reblog attempt)")
             
-            # Check if federation is enabled
-            if not self.config.federate_missing_statuses:
-                self.log.info(f"{instance_name}: skip, not federated (set federate_missing_statuses=true to enable)")
-                if self.config.debug_decisions:
-                    self.debug_log.info(f"DECISION: SKIP - reblog-404-federation-disabled")
-                return (False, None)
-            
             # Attempt 2: Try to federate via search with resolve=True
             if self.config.debug_decisions:
                 self.debug_log.debug(f"Attempting to federate {sid_display} via search(resolve=True)")

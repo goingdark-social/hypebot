@@ -12,13 +12,12 @@ from tests.test_seen_status import DummyConfig, status_data
 
 
 def test_fetches_unfederated_posts_with_resolve_true(tmp_path):
-    """Test that the bot can fetch and boost unfederated posts when federation is enabled."""
+    """Test that the bot can fetch and boost unfederated posts via federation."""
     from mastodon.errors import MastodonNotFoundError
     
     cfg = DummyConfig(str(tmp_path / "state.json"))
     inst = types.SimpleNamespace(name="test_instance", limit=1)
     cfg.subscribed_instances = [inst]
-    cfg.federate_missing_statuses = True  # Enable proactive federation
     hype = Hype(cfg)
     
     # Trending returns full status object
@@ -64,7 +63,6 @@ def test_handles_empty_search_result_gracefully(tmp_path):
     cfg = DummyConfig(str(tmp_path / "state.json"))
     inst = types.SimpleNamespace(name="test_instance", limit=1)
     cfg.subscribed_instances = [inst]
-    cfg.federate_missing_statuses = True  # Enable federation
     hype = Hype(cfg)
     
     # Trending returns full status object
@@ -97,43 +95,6 @@ def test_handles_empty_search_result_gracefully(tmp_path):
     assert search_call_kwargs.get("resolve") == True
 
 
-def test_skips_unfederated_posts_when_federation_disabled(tmp_path):
-    """Test that unfederated posts are skipped when federate_missing_statuses=False."""
-    from mastodon.errors import MastodonNotFoundError
-    
-    cfg = DummyConfig(str(tmp_path / "state.json"))
-    inst = types.SimpleNamespace(name="test_instance", limit=1)
-    cfg.subscribed_instances = [inst]
-    cfg.federate_missing_statuses = False  # Federation disabled (default)
-    hype = Hype(cfg)
-    
-    # Trending returns full status object
-    trending_status = status_data("12345", "https://remote.instance/status/12345")
-    trending = [trending_status]
-    
-    # Mock the remote instance client
-    remote_client = MagicMock()
-    remote_client.trending_statuses.return_value = trending
-    hype.init_client = MagicMock(return_value=remote_client)
-    
-    # Mock the bot's own client
-    bot_client = MagicMock()
-    
-    # Reblog fails (not in local DB)
-    bot_client.status_reblog.side_effect = MastodonNotFoundError()
-    
-    hype.client = bot_client
-    
-    # The boost cycle should complete without attempting federation
-    hype.boost()
-    
-    # Verify that reblog was attempted once
-    assert bot_client.status_reblog.call_count == 1
-    
-    # Verify that search_v2 was NOT called (federation disabled)
-    assert bot_client.search_v2.call_count == 0
-
-
 def test_federation_handles_api_errors_gracefully(tmp_path):
     """Test that federation handles API errors gracefully with proper error logging."""
     from mastodon.errors import MastodonAPIError, MastodonNotFoundError
@@ -141,7 +102,6 @@ def test_federation_handles_api_errors_gracefully(tmp_path):
     cfg = DummyConfig(str(tmp_path / "state.json"))
     inst = types.SimpleNamespace(name="test_instance", limit=1)
     cfg.subscribed_instances = [inst]
-    cfg.federate_missing_statuses = True
     hype = Hype(cfg)
     
     # Trending returns full status object
