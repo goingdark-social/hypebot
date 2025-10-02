@@ -46,8 +46,6 @@ class DummyConfig:
         self.min_score_threshold = 0
         # Related hashtag scoring configuration
         self.related_hashtags = {}
-        # Proactive federation configuration
-        self.federate_missing_statuses = False
 
 
 def status_data(i, u):
