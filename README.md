@@ -131,6 +131,9 @@ spam_link_penalty: 0.5   # Points to reduce when links are present
 log_level: "INFO"  # Set to "DEBUG" for detailed logging
 debug_decisions: false  # Enable detailed decision tracing and reasoning
 logfile_path: ""  # Path to log file for persistent logging (e.g., "/app/logs/hypebot.log")
+
+# Federation Options
+federate_missing_statuses: false  # Enable proactive federation of unfederated trending posts (default: false)
 ```
 
 `min_reblogs` and `min_favourites` let you ignore posts that haven't gained enough traction yet.
@@ -150,6 +153,17 @@ The bot includes configurable spam detection to reduce scores for potentially pr
 - `spam_link_penalty` - Points to reduce when links are detected in posts (default: 0, disabled)
 
 When enabled, posts with excessive emojis or links receive score penalties to reduce their boost priority. This helps avoid promoting content that may be spam-like or overly promotional.
+
+### Proactive Federation
+
+By default, the bot only boosts trending posts that are already federated to your local instance. You can optionally enable proactive federation to pull in unfederated trending content:
+
+- `federate_missing_statuses: false` (default) - Only boost posts already in your local database
+- `federate_missing_statuses: true` - Actively federate and boost unfederated trending posts from remote instances
+
+When enabled, the bot helps seed federation by bringing trending content from other instances into your local timeline. This is especially useful for smaller instances that want to increase content discovery for their users.
+
+**Note:** This feature is disabled by default to ensure conservative behavior. Enable it if you want the bot to actively pull in unfederated content from subscribed instances.
 
 ### Debug Logging
 
