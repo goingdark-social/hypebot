@@ -16,16 +16,19 @@ def test_prioritizes_weighted_hashtags(tmp_path):
     cfg.subscribed_instances = [inst]
     hype = Hype(cfg)
     hype.client = MagicMock()
-    hype.client.search_v2.side_effect = [
-        {"statuses": [status_data("1", "https://a/1")]},
-        {"statuses": [status_data("2", "https://a/2")]},
-    ]
     m = MagicMock()
-    m.trending_statuses.return_value = [
-        {"uri": "https://a/2", "tags": [{"name": "rust"}]},
-        {"uri": "https://a/1", "tags": [{"name": "python"}]},
-    ]
+    
+    # Trending returns full status objects
+    s1 = status_data("1", "https://a/1")
+    s1["tags"] = [{"name": "python"}]
+    s2 = status_data("2", "https://a/2")
+    s2["tags"] = [{"name": "rust"}]
+    
+    # s2 comes first in trending, but s1 should be boosted first due to python hashtag weight
+    m.trending_statuses.return_value = [s2, s1]
     hype.init_client = MagicMock(return_value=m)
     hype.boost()
-    first_search = hype.client.search_v2.call_args_list[0][0][0]
-    assert first_search == "https://a/1"
+    
+    # Verify s1 (python) was boosted first
+    first_reblog = hype.client.status_reblog.call_args_list[0][0][0]
+    assert first_reblog["uri"] == "https://a/1"

@@ -9,7 +9,7 @@ import math
 
 import schedule
 from mastodon import Mastodon
-from mastodon.errors import MastodonAPIError
+from mastodon.errors import MastodonAPIError, MastodonNotFoundError
 
 from .config import Config
 
@@ -441,6 +441,135 @@ class Hype:
             return datetime.fromtimestamp(0, timezone.utc)
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
+    def _fetch_status_from_remote(self, status_id: str, instance_name: str) -> dict:
+        """
+        Fetch a status directly from a remote instance using GET /api/v1/statuses/:id.
+        This validates the status exists and returns its canonical data.
+        
+        Returns the status dict if successful, None otherwise.
+        """
+        try:
+            # Create a client for the remote instance (unauthenticated, public endpoint)
+            remote_client = self.init_client(instance_name)
+            status = remote_client.status(status_id)
+            
+            if self.config.debug_decisions:
+                sid_display = str(status_id)[:8] + "..." if len(str(status_id)) > 8 else str(status_id)
+                self.debug_log.debug(f"Remote fetch successful for {sid_display} from {instance_name}")
+            
+            return status
+        except MastodonNotFoundError:
+            if self.config.debug_decisions:
+                sid_display = str(status_id)[:8] + "..." if len(str(status_id)) > 8 else str(status_id)
+                self.debug_log.info(f"Remote status {sid_display} not found (404) on {instance_name}")
+            return None
+        except MastodonAPIError as e:
+            self.log.warning(f"{instance_name}: Remote fetch error for status {status_id} - {e}")
+            if self.config.debug_decisions:
+                self.debug_log.warning(f"Remote fetch API error: {e}")
+            return None
+        except Exception as e:
+            self.log.error(f"{instance_name}: Unexpected error fetching status {status_id} - {e}")
+            if self.config.debug_decisions:
+                self.debug_log.error(f"Remote fetch unexpected error: {e}")
+            return None
+
+    def _attempt_reblog_with_federation_fallback(self, status: dict, instance_name: str) -> tuple:
+        """
+        Attempt to reblog a status with federation fallback if needed.
+        
+        Correct flow per platform requirements:
+        1. Try direct reblog (works if status already in local DB)
+        2. If reblog returns 404 and federation enabled, use search(resolve=True) to federate
+        3. Retry reblog after successful federation
+        
+        Returns (success: bool, status_for_tracking: dict or None)
+        """
+        status_id = status.get("id", "unknown")
+        sid_display = str(status_id)[:8] + "..." if len(str(status_id)) > 8 else str(status_id)
+        uri = status.get("uri") or status.get("url")
+        
+        if not uri:
+            self.log.warning(f"{instance_name}: Cannot process status {status_id}, missing URI")
+            if self.config.debug_decisions:
+                self.debug_log.warning(f"DECISION: SKIP - Missing URI")
+            return (False, None)
+        
+        # Attempt 1: Try direct reblog (status may already be in local DB)
+        try:
+            self.client.status_reblog(status)
+            if self.config.debug_decisions:
+                self.debug_log.debug(f"Direct reblog successful for {sid_display} (already in local DB)")
+            return (True, status)
+        except MastodonNotFoundError:
+            # Status not in local DB (404 on reblog)
+            if self.config.debug_decisions:
+                self.debug_log.debug(f"Status {sid_display} not in local DB (404 on reblog attempt)")
+            
+            # Check if federation is enabled
+            if not self.config.federate_missing_statuses:
+                self.log.info(f"{instance_name}: skip, not federated (set federate_missing_statuses=true to enable)")
+                if self.config.debug_decisions:
+                    self.debug_log.info(f"DECISION: SKIP - reblog-404-federation-disabled")
+                return (False, None)
+            
+            # Attempt 2: Try to federate via search with resolve=True
+            if self.config.debug_decisions:
+                self.debug_log.debug(f"Attempting to federate {sid_display} via search(resolve=True)")
+            
+            try:
+                result = self.client.search_v2(
+                    uri, result_type="statuses", resolve=True
+                ).get("statuses", [])
+                
+                if not result:
+                    # Search with resolve=True returned empty
+                    self.log.info(f"{instance_name}: skip, resolve-empty (status exists remotely but couldn't be federated)")
+                    if self.config.debug_decisions:
+                        self.debug_log.info(f"DECISION: SKIP - remote-200-local-resolve-empty")
+                    return (False, None)
+                
+                # Federation succeeded, retry reblog with federated status
+                federated_status = result[0]
+                if self.config.debug_decisions:
+                    self.debug_log.debug(f"Federation successful for {sid_display}, retrying reblog")
+                
+                try:
+                    self.client.status_reblog(federated_status)
+                    if self.config.debug_decisions:
+                        self.debug_log.debug(f"Reblog after federation successful for {sid_display}")
+                    return (True, federated_status)
+                except MastodonAPIError as reblog_error:
+                    self.log.warning(f"{instance_name}: Reblog failed after federation - {reblog_error}")
+                    if self.config.debug_decisions:
+                        self.debug_log.warning(f"DECISION: SKIP - reblog-404-after-resolve")
+                    return (False, None)
+                    
+            except MastodonAPIError as e:
+                self.log.warning(f"{instance_name}: Federation attempt failed - {e}")
+                if self.config.debug_decisions:
+                    if "401" in str(e) or "Unauthorized" in str(e):
+                        self.debug_log.warning(f"DECISION: SKIP - token-scope-missing")
+                    else:
+                        self.debug_log.warning(f"DECISION: SKIP - resolve-rejected ({e})")
+                return (False, None)
+            except Exception as e:
+                self.log.error(f"{instance_name}: Unexpected error during federation - {e}")
+                if self.config.debug_decisions:
+                    self.debug_log.error(f"DECISION: SKIP - federation-error ({e})")
+                return (False, None)
+                
+        except MastodonAPIError as e:
+            self.log.warning(f"{instance_name}: Reblog attempt failed - {e}")
+            if self.config.debug_decisions:
+                self.debug_log.warning(f"DECISION: SKIP - reblog-error ({e})")
+            return (False, None)
+        except Exception as e:
+            self.log.error(f"{instance_name}: Unexpected error during reblog - {e}")
+            if self.config.debug_decisions:
+                self.debug_log.error(f"DECISION: SKIP - reblog-unexpected-error ({e})")
+            return (False, None)
+
     def boost(self):
         self.log.info("Run boost")
         
@@ -539,27 +668,13 @@ class Hype:
             
             # Debug: Log candidate evaluation
             if self.config.debug_decisions:
-                sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
+                sid_display = str(sid)[:8] + "..." if len(str(sid)) > 8 else str(sid)
                 self.debug_log.info(f"--- EVALUATING STATUS {sid_display} ---")
                 self.debug_log.info(f"From: {instance_name}, Score: {score:.2f}")
-                
-            try:
-                result = self.client.search_v2(
-                    trending["uri"], result_type="statuses", resolve=False
-                ).get("statuses", [])
-            except MastodonAPIError as e:
-                self.log.warning(f"{instance_name}: API error during search, skipping - {e}")
-                if self.config.debug_decisions:
-                    self.debug_log.warning(f"DECISION: SKIP - API error during search: {e}")
-                continue
             
-            if not result:
-                self.log.info(f"{instance_name}: skip, not found")
-                if self.config.debug_decisions:
-                    self.debug_log.info(f"DECISION: SKIP - Status not found on our instance")
-                continue
-                
-            status = result[0]
+            # Step 1: Apply filters on the trending status (before attempting any network calls)
+            # Use the trending status directly - it's already a full status object from the remote
+            status = trending
             
             if self._seen_status(status):
                 self.log.info(f"{instance_name}: already boosted, skip")
@@ -580,8 +695,8 @@ class Hype:
                 if self.config.debug_decisions:
                     self.debug_log.info(f"DECISION: SKIP - Filtered by content rules")
                 continue
-                
-            # We're going to boost this status
+            
+            # Step 2: Attempt reblog with federation fallback
             if self.config.debug_decisions:
                 self.debug_log.info(f"DECISION: BOOST - Status passes all checks")
                 author = status.get("account", {}).get("acct", "unknown")
@@ -590,10 +705,14 @@ class Hype:
                     content_preview = content_preview[:97] + "..."
                 self.debug_log.info(f"  Author: {author}")
                 self.debug_log.info(f"  Content: {content_preview}")
-                
-            self.client.status_reblog(status)
+            
+            success, tracked_status = self._attempt_reblog_with_federation_fallback(status, instance_name)
+            if not success:
+                continue
+            
+            # Use tracked_status for memory (may be different if federated)
             self._count_public_boost()
-            self._remember_status(status)
+            self._remember_status(tracked_status if tracked_status else status)
             self._save_state()
             boosted += 1
             self.log.info(f"{instance_name}: boosted {boosted}/{total}")

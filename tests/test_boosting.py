@@ -82,33 +82,19 @@ def test_equal_score_prefers_newer(tmp_path, use_datetime):
             else val
         )
 
-    trending = [
-        {
-            "uri": "https://a/1",
-            "reblogs_count": 5,
-            "favourites_count": 5,
-            "created_at": ts("2024-01-01T00:00:00Z"),
-        },
-        {
-            "uri": "https://a/2",
-            "reblogs_count": 5,
-            "favourites_count": 5,
-            "created_at": ts("2024-01-02T00:00:00Z"),
-        },
-    ]
-    m = MagicMock()
-    m.trending_statuses.return_value = trending
-    hype.init_client = MagicMock(return_value=m)
-    client = MagicMock()
+    # Trending returns full status objects
     older = status_data("1", "https://a/1")
     older["created_at"] = ts("2024-01-01T00:00:00Z")
     newer = status_data("2", "https://a/2")
     newer["created_at"] = ts("2024-01-02T00:00:00Z")
-
-    def search(uri, result_type=None, resolve=None):
-        return {"statuses": [newer if uri == "https://a/2" else older]}
-
-    client.search_v2.side_effect = search
+    
+    trending = [older, newer]
+    m = MagicMock()
+    m.trending_statuses.return_value = trending
+    hype.init_client = MagicMock(return_value=m)
+    client = MagicMock()
+    
+    # Mock reblog to succeed (statuses already in local DB)
     hype.client = client
     hype.boost()
     calls = [c.args[0]["uri"] for c in client.status_reblog.call_args_list]
@@ -143,43 +129,30 @@ def test_skips_empty_filtered_and_blocked_statuses(tmp_path):
     cfg.filtered_instances = ["bad.instance"]
     cfg.require_media = True
     hype = Hype(cfg)
-    trending = [
-        {
-            "uri": "https://a/1",
-            "reblogs_count": 1,
-            "favourites_count": 1,
-            "created_at": "2024-01-01T00:00:00Z",
-        },
-        {
-            "uri": "https://a/2",
-            "reblogs_count": 1,
-            "favourites_count": 1,
-            "created_at": "2024-01-01T00:00:00Z",
-        },
-        {
-            "uri": "https://a/3",
-            "reblogs_count": 1,
-            "favourites_count": 1,
-            "created_at": "2024-01-01T00:00:00Z",
-        },
-    ]
+    
+    # Trending returns full status objects
+    s1 = status_data("1", "https://a/1")
+    s1["media_attachments"] = []
+    # s1 is filtered out because it has no media (require_media=True)
+    
+    s2 = status_data("2", "https://a/2")
+    s2["account"]["acct"] = "u@bad.instance"
+    # s2 is filtered out because it's from bad.instance
+    
+    s3 = status_data("3", "https://a/3")
+    s3["media_attachments"] = []
+    # s3 is filtered out because it has no media (require_media=True)
+    
+    trending = [s1, s2, s3]
     m = MagicMock()
     m.trending_statuses.return_value = trending
     hype.init_client = MagicMock(return_value=m)
     client = MagicMock()
-    s2 = status_data("2", "https://a/2")
-    s2["account"]["acct"] = "u@bad.instance"
-    s3 = status_data("3", "https://a/3")
-    s3["media_attachments"] = []
-    client.search_v2.side_effect = [
-        {"statuses": []},
-        {"statuses": [s2]},
-        {"statuses": [s3]},
-    ]
     hype.client = client
     hype.boost()
+    
+    # All statuses should be filtered out before reblog attempt
     client.status_reblog.assert_not_called()
-    assert client.search_v2.call_count == 3
 
 
 def test_stops_when_hour_cap_reached(tmp_path):
@@ -188,37 +161,20 @@ def test_stops_when_hour_cap_reached(tmp_path):
     cfg.subscribed_instances = [inst]
     cfg.per_hour_public_cap = 2
     hype = Hype(cfg)
+    
+    # Trending returns full status objects
     trending = [
-        {
-            "uri": "https://a/1",
-            "reblogs_count": 1,
-            "favourites_count": 1,
-            "created_at": "2024-01-01T00:00:00Z",
-        },
-        {
-            "uri": "https://a/2",
-            "reblogs_count": 1,
-            "favourites_count": 1,
-            "created_at": "2024-01-01T00:00:00Z",
-        },
-        {
-            "uri": "https://a/3",
-            "reblogs_count": 1,
-            "favourites_count": 1,
-            "created_at": "2024-01-01T00:00:00Z",
-        },
+        status_data("1", "https://a/1"),
+        status_data("2", "https://a/2"),
+        status_data("3", "https://a/3"),
     ]
     m = MagicMock()
     m.trending_statuses.return_value = trending
     hype.init_client = MagicMock(return_value=m)
     client = MagicMock()
-    client.search_v2.side_effect = [
-        {"statuses": [status_data("1", "https://a/1")]},
-        {"statuses": [status_data("2", "https://a/2")]},
-        {"statuses": [status_data("3", "https://a/3")]},
-    ]
     hype.client = client
     hype.boost()
+    
+    # Should boost first 2, then stop due to hour cap
     assert client.status_reblog.call_count == 2
-    assert client.search_v2.call_count == 2
     assert hype.state["hour_count"] == 2
