@@ -545,7 +545,7 @@ class Hype:
                 
             try:
                 result = self.client.search_v2(
-                    trending["uri"], result_type="statuses", resolve=False
+                    trending["uri"], result_type="statuses", resolve=True
                 ).get("statuses", [])
             except MastodonAPIError as e:
                 self.log.warning(f"{instance_name}: API error during search, skipping - {e}")
