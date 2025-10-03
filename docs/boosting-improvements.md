@@ -74,38 +74,87 @@ A post about "self-hosting applications" without #homelab would get:
 - Related hashtag bonus: 5 points (50% of homelab's 10 points)
 - **Total**: ~11 points
 
+## Fetch vs Boost Limits
+
+The bot now supports separate `fetch_limit` and `boost_limit` per instance, allowing you to fetch a larger candidate pool while only boosting the best posts.
+
+### Legacy Configuration (Single Limit)
+```yaml
+subscribed_instances:
+  mastodon.social:
+    limit: 5  # Fetch 5, boost up to 5
+  chaos.social:
+    limit: 3  # Fetch 3, boost up to 3
+```
+
+### New Configuration (Separate Limits)
+```yaml
+subscribed_instances:
+  mastodon.social:
+    fetch_limit: 20   # Fetch 20 trending posts (API maximum)
+    boost_limit: 4    # But only boost up to 4 per run
+  chaos.social:
+    fetch_limit: 15   # Fetch 15 trending posts
+    boost_limit: 3    # But only boost up to 3 per run
+```
+
+### Benefits
+
+- **Larger candidate pool**: Fetching more posts (e.g., 15-20) increases diversity
+- **Controlled output**: Boosting fewer posts (e.g., 4) keeps timeline non-spammy
+- **Better scoring**: More candidates means better chance of finding quality content
+- **API efficiency**: Uses the Mastodon API's `limit` parameter directly
+
+### How It Works
+
+1. Bot fetches `fetch_limit` trending posts from each instance
+2. All fetched posts are scored and ranked together
+3. Bot boosts up to `boost_limit` posts per instance (respecting global `max_boosts_per_run`)
+4. Per-instance limits ensure diversity across sources
+
 ## Achieving Smaller, More Frequent Boosts
 
 To implement the "smaller bursts more often" pattern mentioned in the issue:
 
-### Current Configuration (Large, Infrequent Bursts)
+### Old Default Configuration
 ```yaml
 interval: 60              # Every 60 minutes
 max_boosts_per_run: 5     # Up to 5 posts per cycle
-min_score_threshold: 0    # No quality filter
+subscribed_instances:
+  mastodon.social:
+    limit: 5             # Fetch and boost up to 5
 ```
 
-### Recommended Configuration (Smaller, Frequent Bursts)
+### New Recommended Configuration
 ```yaml
-interval: 15              # Every 15 minutes (4x more frequent)
-max_boosts_per_run: 2     # Only 1-2 posts per cycle
+interval: 15              # Every 15 minutes (default)
+max_boosts_per_run: 5     # Up to 5 posts total per cycle
+per_hour_public_cap: 4    # 4 posts per hour max
 min_score_threshold: 5    # Quality threshold
-per_hour_public_cap: 4    # Total hourly limit remains the same
+
+subscribed_instances:
+  mastodon.social:
+    fetch_limit: 20      # Fetch 20 candidates
+    boost_limit: 4       # Boost up to 4 per instance
+  chaos.social:
+    fetch_limit: 15      # Fetch 15 candidates
+    boost_limit: 3       # Boost up to 3 per instance
 ```
 
 This approach:
+- ✅ Fetches more candidates (larger, more diverse pool)
 - ✅ Boosts fewer posts at a time (smaller bursts)
-- ✅ Runs more frequently (every 15 vs 60 minutes)
-- ✅ Maintains the same total hourly output
+- ✅ Runs more frequently (every 15 minutes instead of 60)
+- ✅ Maintains reasonable total hourly output
 - ✅ Enforces quality standards
-- ✅ Skips cycles when no quality content is available
+- ✅ Ensures diversity across instances
 
 ## Complete Example Configuration
 
 ```yaml
-# config.yaml - Quality-focused smaller bursts
-interval: 20                    # Check every 20 minutes
-max_boosts_per_run: 2          # Max 2 posts per cycle
+# config.yaml - Quality-focused with larger candidate pools
+interval: 15                    # Check every 15 minutes (new default)
+max_boosts_per_run: 5          # Max 5 posts total per cycle
 min_score_threshold: 5         # Quality threshold
 per_hour_public_cap: 6         # 6 posts per hour max
 daily_public_cap: 48          # 48 posts per day max
@@ -135,15 +184,18 @@ related_hashtags:
     development: 0.3
 
 subscribed_instances:
-  - name: "mastodon.social"
-    limit: 3
-  - name: "chaos.social"  
-    limit: 3
+  mastodon.social:
+    fetch_limit: 20    # Fetch 20 trending posts
+    boost_limit: 4     # Boost up to 4 best posts
+  chaos.social:
+    fetch_limit: 15    # Fetch 15 trending posts
+    boost_limit: 3     # Boost up to 3 best posts
 ```
 
 This configuration will:
-- Check for content every 20 minutes
-- Boost up to 2 high-quality posts per cycle
+- Check for content every 15 minutes
+- Fetch 20 candidates from mastodon.social, 15 from chaos.social
+- Boost up to 4 from mastodon.social, 3 from chaos.social (total max 5 per run)
 - Skip cycles when no posts meet the quality threshold
 - Give bonuses for related content (e.g., "self-hosting" gets homelab bonus)
-- Maintain natural-feeling boost patterns instead of large dumps
+- Maintain natural-feeling boost patterns with diverse sources

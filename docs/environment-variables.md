@@ -13,7 +13,7 @@ All configuration parameters can now be overridden using environment variables w
 ## Available Environment Variables
 
 ### Basic Configuration
-- `HYPE_INTERVAL` - Refresh interval in minutes (default: 60)
+- `HYPE_INTERVAL` - Refresh interval in minutes (default: 15)
 - `HYPE_LOG_LEVEL` - Logging level (default: "INFO")
 - `HYPE_DEBUG_DECISIONS` - Enable detailed decision logging (default: false)
 - `HYPE_LOGFILE_PATH` - Path to log file (default: "")
