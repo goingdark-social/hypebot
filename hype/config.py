@@ -19,19 +19,35 @@ class BotAccount:
 
 class Instance:
     name: str
-    limit: int
+    fetch_limit: int
+    boost_limit: int
 
-    def __init__(self, name: str, limit: int) -> None:
+    def __init__(self, name: str, limit: int = None, fetch_limit: int = None, boost_limit: int = None) -> None:
         self.name = name
-        self.limit = limit if limit > 0 and limit <= 20 else 20
+        # Support legacy 'limit' parameter for backward compatibility
+        if limit is not None and fetch_limit is None and boost_limit is None:
+            # Legacy mode: single limit means both fetch and boost the same amount
+            self.fetch_limit = limit if limit > 0 and limit <= 20 else 20
+            self.boost_limit = limit if limit > 0 and limit <= 20 else 20
+        else:
+            # New mode: separate fetch and boost limits
+            self.fetch_limit = fetch_limit if fetch_limit is not None and fetch_limit > 0 and fetch_limit <= 20 else 20
+            self.boost_limit = boost_limit if boost_limit is not None and boost_limit > 0 else 4
+
+    @property
+    def limit(self):
+        """Legacy property for backward compatibility"""
+        return self.fetch_limit
 
     def __repr__(self) -> str:
-        return f"{self.name} (top {self.limit})"
+        if self.fetch_limit == self.boost_limit:
+            return f"{self.name} (top {self.fetch_limit})"
+        return f"{self.name} (fetch {self.fetch_limit}, boost {self.boost_limit})"
 
 
 class Config:
     bot_account: BotAccount
-    interval: int = 60
+    interval: int = 15
     log_level: str = "INFO"
     debug_decisions: bool = False
     logfile_path: str = ""
@@ -160,18 +176,24 @@ class Config:
                         name, limit = pair.split('=', 1)
                         try:
                             limit_int = int(limit.strip())
-                            self.subscribed_instances.append(Instance(name.strip(), limit_int))
+                            self.subscribed_instances.append(Instance(name.strip(), limit=limit_int))
                         except ValueError:
                             logging.getLogger("Config").warning(f"Invalid limit for instance {name}: {limit}")
             else:
-                self.subscribed_instances = (
-                    [
-                        Instance(name, props["limit"])
-                        for name, props in config["subscribed_instances"].items()
-                    ]
-                    if config.get("subscribed_instances")
-                    else []
-                )
+                self.subscribed_instances = []
+                if config.get("subscribed_instances"):
+                    for name, props in config["subscribed_instances"].items():
+                        # Support both old format (limit: int) and new format (fetch_limit/boost_limit)
+                        if isinstance(props, dict):
+                            fetch_limit = props.get("fetch_limit")
+                            boost_limit = props.get("boost_limit")
+                            limit = props.get("limit")
+                            self.subscribed_instances.append(
+                                Instance(name, limit=limit, fetch_limit=fetch_limit, boost_limit=boost_limit)
+                            )
+                        else:
+                            # Legacy format: subscribed_instances is a dict with limit as value
+                            self.subscribed_instances.append(Instance(name, limit=props))
 
             self.filtered_instances = get_config_value("HYPE_FILTERED_INSTANCES", config, "filtered_instances", [], list)
             if isinstance(self.filtered_instances, list) and config.get("filtered_instances"):

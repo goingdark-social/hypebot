@@ -120,7 +120,7 @@ subscribed_instances:
             config = Config()
             # Should use default values
             assert config.min_replies == 0
-            assert config.interval == 60
+            assert config.interval == 15  # Updated default from 60 to 15
             assert config.daily_public_cap == 48
 
 
