@@ -48,28 +48,41 @@ class Instance:
 class Config:
     bot_account: BotAccount
     interval: int = 15
-    log_level: str = "INFO"
-    debug_decisions: bool = False
+    log_level: str = "DEBUG"
+    debug_decisions: bool = True
     logfile_path: str = ""
     subscribed_instances: List = []
-    filtered_instances: List = []
-    profile_prefix: str = ""
-    fields: dict = {}
-    daily_public_cap: int = 48
-    per_hour_public_cap: int = 1
+    filtered_instances: List = ["example.com"]
+    profile_prefix: str = "Official hypebot for goingdark.social, automatically boosting top trending posts from selected Mastodon instances:"
+    fields: dict = {
+        "instance": "https://goingdark.social",
+        "code": "https://github.com/goingdark-social/hypebot",
+        "automation": "Runs every 15 minutes",
+        "about": "Boosts trending posts from curated instances"
+    }
+    daily_public_cap: int = 96
+    per_hour_public_cap: int = 5
     max_boosts_per_run: int = 5
     max_boosts_per_author_per_day: int = 1
     author_diversity_enforced: bool = True
     prefer_media: float = 0
-    require_media: bool = True
+    require_media: bool = False
     skip_sensitive_without_cw: bool = True
-    min_reblogs: int = 0
-    min_favourites: int = 0
+    min_reblogs: int = 10
+    min_favourites: int = 10
     min_replies: int = 0
-    languages_allowlist: list = []
+    languages_allowlist: list = ["en"]
     state_path: str = "/app/secrets/state.json"
     seen_cache_size: int = 6000
-    hashtag_scores: dict = {}
+    hashtag_scores: dict = {
+        "homelab": 20,
+        "selfhosted": 15,
+        "privacy": 10,
+        "security": 10,
+        "cybersecurity": 10,
+        "kubernetes": 15,
+        "docker": 15
+    }
     # Age decay configuration
     age_decay_enabled: bool = False
     age_decay_half_life_hours: float = 24.0  # Hours for score to halve due to age
@@ -163,7 +176,7 @@ class Config:
                 self.fields = (
                     {name: value for name, value in config["fields"].items()}
                     if config.get("fields")
-                    else {}
+                    else self.fields
                 )
 
             # Handle subscribed instances (complex object)
@@ -194,8 +207,19 @@ class Config:
                         else:
                             # Legacy format: subscribed_instances is a dict with limit as value
                             self.subscribed_instances.append(Instance(name, limit=props))
+                else:
+                    # No instances configured - use goingdark.social defaults
+                    self.subscribed_instances = [
+                        Instance("infosec.exchange", fetch_limit=20, boost_limit=5),
+                        Instance("mastodon.social", fetch_limit=20, boost_limit=4),
+                        Instance("mas.to", fetch_limit=20, boost_limit=5),
+                        Instance("fosstodon.org", fetch_limit=20, boost_limit=6),
+                        Instance("floss.social", fetch_limit=20, boost_limit=4),
+                        Instance("ioc.exchange", fetch_limit=20, boost_limit=3),
+                        Instance("mstdn.social", fetch_limit=20, boost_limit=2)
+                    ]
 
-            self.filtered_instances = get_config_value("HYPE_FILTERED_INSTANCES", config, "filtered_instances", [], list)
+            self.filtered_instances = get_config_value("HYPE_FILTERED_INSTANCES", config, "filtered_instances", self.filtered_instances, list)
             if isinstance(self.filtered_instances, list) and config.get("filtered_instances"):
                 # If from config file, it's a list of strings, keep as is
                 if not os.environ.get("HYPE_FILTERED_INSTANCES"):
@@ -252,10 +276,13 @@ class Config:
                         except ValueError:
                             logging.getLogger("Config").warning(f"Invalid score for hashtag {tag}: {score}")
             else:
-                self.hashtag_scores = {
-                    k.lower(): float(v)  # Changed to float to support negative values
-                    for k, v in (config.get("hashtag_scores") or {}).items()
-                }
+                config_hashtag_scores = config.get("hashtag_scores")
+                if config_hashtag_scores:
+                    self.hashtag_scores = {
+                        k.lower(): float(v)  # Changed to float to support negative values
+                        for k, v in config_hashtag_scores.items()
+                    }
+                # If config doesn't specify hashtag_scores, keep the default from class attribute
                 
             # Age decay configuration
             self.age_decay_enabled = get_config_value("HYPE_AGE_DECAY_ENABLED", config, "age_decay_enabled", self.age_decay_enabled, bool)
