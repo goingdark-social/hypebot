@@ -589,7 +589,9 @@ class Hype:
         if self.config.debug_decisions:
             self.debug_log.info(f"Fetching from {len(self.config.subscribed_instances)} instances:")
             for inst in self.config.subscribed_instances:
-                self.debug_log.info(f"  - {inst.name} (limit: {inst.limit})")
+                fetch_lim = getattr(inst, 'fetch_limit', getattr(inst, 'limit', 20))
+                boost_lim = getattr(inst, 'boost_limit', getattr(inst, 'limit', 4))
+                self.debug_log.info(f"  - {inst.name} (fetch: {fetch_lim}, boost: {boost_lim})")
                 
         collected = []
         for inst in self.config.subscribed_instances:
@@ -599,6 +601,9 @@ class Hype:
             for entry in statuses:
                 s = entry["status"]
                 entry["score"] = self.score_status(s)
+                # Store the boost_limit for this instance with each entry
+                # Support backward compatibility: if no boost_limit, use limit (old behavior)
+                entry["instance_boost_limit"] = getattr(inst, 'boost_limit', getattr(inst, 'limit', 4))
                 collected.append(entry)
                 
         # Debug: Log collection results
@@ -642,6 +647,7 @@ class Hype:
         
         total = len(collected)
         boosted = 0
+        instance_boost_counts = {}  # Track boosts per instance in this run
         
         # Debug: Log boost decision loop start
         if self.config.debug_decisions:
@@ -657,7 +663,17 @@ class Hype:
             trending = entry["status"]
             sid = trending.get("id", "unknown")
             instance_name = entry["instance"]
+            instance_boost_limit = entry.get("instance_boost_limit", 4)
             score = entry["score"]
+            
+            # Check per-instance boost limit
+            instance_boosts = instance_boost_counts.get(instance_name, 0)
+            if instance_boosts >= instance_boost_limit:
+                if self.config.debug_decisions:
+                    sid_display = str(sid)[:8] + "..." if len(str(sid)) > 8 else str(sid)
+                    self.debug_log.info(f"--- SKIPPING STATUS {sid_display} ---")
+                    self.debug_log.info(f"From: {instance_name}, Reason: Instance boost limit reached ({instance_boosts}/{instance_boost_limit})")
+                continue
             
             # Debug: Log candidate evaluation
             if self.config.debug_decisions:
@@ -708,7 +724,11 @@ class Hype:
             self._remember_status(tracked_status if tracked_status else status)
             self._save_state()
             boosted += 1
+            instance_boost_counts[instance_name] = instance_boost_counts.get(instance_name, 0) + 1
             self.log.info(f"{instance_name}: boosted {boosted}/{total}")
+            
+            if self.config.debug_decisions:
+                self.debug_log.info(f"Instance {instance_name}: {instance_boost_counts[instance_name]}/{instance_boost_limit} boosts from this instance")
             
             if self.state["hour_count"] >= self.config.per_hour_public_cap:
                 self.log.info("Per-hour public cap reached, stopping early.")
@@ -725,10 +745,12 @@ class Hype:
 
     def _fetch_trending_statuses(self, instance):
         try:
+            # Support both old-style instances (with limit) and new-style (with fetch_limit)
+            fetch_limit = getattr(instance, 'fetch_limit', getattr(instance, 'limit', 20))
             if self.config.debug_decisions:
-                self.debug_log.debug(f"Fetching trending statuses from {instance.name} (limit: {instance.limit})")
+                self.debug_log.debug(f"Fetching trending statuses from {instance.name} (fetch_limit: {fetch_limit})")
             client = self.init_client(instance.name)
-            statuses = client.trending_statuses()[: instance.limit]
+            statuses = client.trending_statuses(limit=fetch_limit)
             result = [{"instance": instance.name, "status": s} for s in statuses]
             if self.config.debug_decisions:
                 self.debug_log.debug(f"Successfully fetched {len(result)} statuses from {instance.name}")

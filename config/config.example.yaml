@@ -1,0 +1,110 @@
+# Example Configuration for Larger Candidate Pools
+#
+# This example demonstrates the new fetch_limit/boost_limit separation
+# introduced to fetch larger candidate pools while controlling boost output.
+
+# Run boost cycles every 15 minutes (new default)
+interval: 15
+
+# Text to add to bot profile
+profile_prefix: "I am boosting trending posts from:"
+
+# Profile fields
+fields:
+  code: https://github.com/goingdark-social/hypebot
+  operator: "@yourhandle@yourdomain.example"
+
+# Instance configuration with fetch/boost limits
+# fetch_limit: How many trending posts to fetch (max 20, API limit)
+# boost_limit: How many to actually boost per run from this instance
+subscribed_instances:
+  mastodon.social:
+    fetch_limit: 20  # Fetch top 20 trending (large candidate pool)
+    boost_limit: 4   # But only boost best 4 per run
+  
+  chaos.social:
+    fetch_limit: 15  # Fetch top 15 trending
+    boost_limit: 3   # Boost best 3 per run
+  
+  fosstodon.org:
+    fetch_limit: 20
+    boost_limit: 4
+  
+  # Legacy format also works (fetch and boost same amount)
+  # tech.lgbt:
+  #   limit: 5
+
+# Filter posts from specific instances
+filtered_instances:
+  - spam.example.com
+
+# Rate limiting
+daily_public_cap: 48       # Max boosts per day
+per_hour_public_cap: 6     # Max boosts per hour
+max_boosts_per_run: 8      # Max total boosts per 15-min cycle
+
+# Diversity controls
+max_boosts_per_author_per_day: 1
+author_diversity_enforced: true
+hashtag_diversity_enforced: false
+max_boosts_per_hashtag_per_run: 1
+
+# Content filtering
+prefer_media: 1.0           # Bonus points for posts with media
+require_media: false        # Don't require media (allow text posts)
+skip_sensitive_without_cw: true
+min_reblogs: 0
+min_favourites: 0
+min_replies: 0
+
+# Language filtering (empty = all languages)
+languages_allowlist: []
+
+# Quality threshold (raw score before normalization)
+# Typical scores: low engagement ~2, medium ~6, high ~13+
+min_score_threshold: 5
+
+# Hashtag scoring
+hashtag_scores:
+  opensource: 10
+  python: 8
+  rust: 8
+  linux: 7
+  selfhosted: 9
+  mastodon: 5
+
+# Related hashtag bonuses
+related_hashtags:
+  opensource:
+    foss: 0.6
+    freesoftware: 0.5
+    open-source: 0.8
+  selfhosted:
+    homelab: 0.7
+    self-hosting: 0.8
+    server: 0.4
+
+# Age decay (reduces scores for older posts)
+age_decay_enabled: false
+age_decay_half_life_hours: 24.0
+
+# Spam detection
+spam_emoji_penalty: 0.5    # Points to reduce per excess emoji
+spam_emoji_threshold: 3    # Emoji count before penalty
+spam_link_penalty: 0       # Penalty for links (0 = disabled)
+
+# Storage and cache
+state_path: "/app/secrets/state.json"
+seen_cache_size: 6000
+
+# Logging
+log_level: "INFO"
+debug_decisions: false
+logfile_path: ""
+
+# Example output with this config:
+# - Fetches 20+15+20 = 55 candidate posts every 15 minutes
+# - Scores and ranks all 55 posts together
+# - Boosts up to 4 from mastodon.social, 3 from chaos.social, 4 from fosstodon.org
+# - Respects max_boosts_per_run (8), per_hour_public_cap (6), daily caps
+# - Results in diverse, high-quality boosts without timeline spam

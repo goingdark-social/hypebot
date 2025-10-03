@@ -79,8 +79,8 @@ bot_account:
 `config.yaml`
 
 ```yaml
-# Refresh interval in minutes
-interval: 60
+# Refresh interval in minutes (default: 15)
+interval: 15
 
 # Text to add to the bot profile befor the list of subscribed servers
 profile_prefix: "I am boosting trending posts from:"
@@ -90,22 +90,28 @@ fields:
   code: https://github.com/goingdark-social/hypebot
   operator: "YOUR HANDLE HERE"
 
-# Define subscribed instances and
-# their individual limit (top n trending posts)
-# which is again limited by the API to max 20
+# Define subscribed instances with fetch and boost limits
+# fetch_limit: how many trending posts to fetch from the instance (max 20)
+# boost_limit: how many of those to actually boost per run
+# Legacy format (single limit) still supported for backward compatibility
 subscribed_instances:
   chaos.social:
-    limit: 20
+    fetch_limit: 20  # Fetch top 20 trending posts
+    boost_limit: 4   # But only boost up to 4 best posts
   mastodon.social:
-    limit: 5
+    fetch_limit: 15  # Fetch top 15 trending posts
+    boost_limit: 3   # But only boost up to 3 best posts
+  # Legacy format still works:
+  fosstodon.org:
+    limit: 5  # Fetch and boost up to 5 posts
 
 # Filter posts from specific instances
 filtered_instances:
   - example.com
 
 daily_public_cap: 48
-per_hour_public_cap: 1
-max_boosts_per_run: 5
+per_hour_public_cap: 6
+max_boosts_per_run: 8
 max_boosts_per_author_per_day: 1
 author_diversity_enforced: true
 prefer_media: 1
@@ -191,16 +197,19 @@ DECISION: BOOST - Status passes all checks
 ## Features
 
 - Boost trending posts from other Mastodon instances
+- Fetch larger candidate pools (up to 20 per instance) while boosting fewer posts for diversity
+- Separate fetch_limit and boost_limit per instance for fine-grained control
 - Update bot profile with list of subscribed instances
 - Rank collected posts using hashtags, engagement, and optional media preference
 - Normalize scores on a 0–100 scale and favor newer posts when scores tie
 - Skip duplicates across instances by tracking canonical URLs with a configurable cache
 - Enforce hourly and daily caps on public boosts
-- Limit boosts for any single author per day
+- Limit boosts per instance per run and for any single author per day
 - Skip reposts and filter posts without media or missing content warnings
 - Skip posts with too few reblogs or favourites
 - Prioritize posts containing weighted hashtags
 - Read timestamps whether they're strings or Python datetimes
+- Default 15-minute interval for frequent, smaller boost cycles
 
 ## Branches
 
