@@ -1,4 +1,7 @@
-# Example configuration showcasing new scoring enhancements
+# Example configuration showcasing new scoring enhancements and fetch/boost limits
+
+# Fetch larger candidate pools with controlled boost output
+interval: 15  # Check every 15 minutes (new default)
 
 # Age decay configuration - prevents boosting stale content
 age_decay_enabled: true
@@ -23,15 +26,24 @@ hashtag_scores:
   offtopic: -5
   lowquality: -15
 
-# Other existing configuration...
-interval: 60
+# Quality threshold - only boost posts meeting minimum score
+min_score_threshold: 5  # Typical: low ~2, medium ~6, high ~13+
+
+# Boost limits
 daily_public_cap: 48
-per_hour_public_cap: 1
-max_boosts_per_run: 5
+per_hour_public_cap: 6
+max_boosts_per_run: 8  # Total across all instances
 prefer_media: 0.5
 
+# Instance configuration with separate fetch and boost limits
 subscribed_instances:
   chaos.social:
-    limit: 5
+    fetch_limit: 20  # Fetch 20 candidates from API
+    boost_limit: 4   # Boost up to 4 best posts
   mastodon.social:  
-    limit: 5
+    fetch_limit: 15  # Fetch 15 candidates
+    boost_limit: 3   # Boost up to 3 best posts
+  
+  # Legacy format still works:
+  # fosstodon.org:
+  #   limit: 5  # Fetch and boost up to 5
