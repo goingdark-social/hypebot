@@ -97,6 +97,11 @@ class Config:
     min_score_threshold: float = 0  # Minimum normalized score (0-100) required for boosting
     # Related hashtag scoring configuration
     related_hashtags: dict = {}  # Map hashtag -> {related_term: partial_score_multiplier}
+    # Local instance timeline configuration
+    local_timeline_enabled: bool = False  # Whether to fetch from local timeline
+    local_timeline_fetch_limit: int = 20  # How many posts to fetch from local timeline
+    local_timeline_boost_limit: int = 2  # Max boosts from local timeline per run
+    local_timeline_min_engagement: int = 1  # Minimum boosts, stars, or comments required
 
     def __init__(self):
         # Helper method to get config values with environment variable override
@@ -302,6 +307,13 @@ class Config:
             
             # Related hashtag scoring configuration (complex object - only from config file for now)
             self.related_hashtags = config.get("related_hashtags", self.related_hashtags) or {}
+            
+            # Local timeline configuration
+            self.local_timeline_enabled = get_config_value("HYPE_LOCAL_TIMELINE_ENABLED", config, "local_timeline_enabled", self.local_timeline_enabled, bool)
+            self.local_timeline_fetch_limit = get_config_value("HYPE_LOCAL_TIMELINE_FETCH_LIMIT", config, "local_timeline_fetch_limit", self.local_timeline_fetch_limit, int)
+            self.local_timeline_boost_limit = get_config_value("HYPE_LOCAL_TIMELINE_BOOST_LIMIT", config, "local_timeline_boost_limit", self.local_timeline_boost_limit, int)
+            self.local_timeline_min_engagement = get_config_value("HYPE_LOCAL_TIMELINE_MIN_ENGAGEMENT", config, "local_timeline_min_engagement", self.local_timeline_min_engagement, int)
+
 
 
 class ConfigException(Exception):

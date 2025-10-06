@@ -46,6 +46,12 @@ class DummyConfig:
         self.min_score_threshold = 0
         # Related hashtag scoring configuration
         self.related_hashtags = {}
+        # Local timeline configuration
+        self.local_timeline_enabled = False
+        self.local_timeline_fetch_limit = 20
+        self.local_timeline_boost_limit = 2
+        self.local_timeline_min_engagement = 1
+
 
 
 def status_data(i, u):
