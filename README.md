@@ -105,6 +105,13 @@ subscribed_instances:
   fosstodon.org:
     limit: 5  # Fetch and boost up to 5 posts
 
+# Local Timeline Configuration
+# Enable boosting from your own instance's local timeline
+local_timeline_enabled: false  # Set to true to enable local timeline boosting
+local_timeline_fetch_limit: 20  # How many posts to fetch from local timeline
+local_timeline_boost_limit: 2  # Max boosts from local timeline per run
+local_timeline_min_engagement: 1  # Minimum total engagement (boosts + stars + comments) required
+
 # Filter posts from specific instances
 filtered_instances:
   - example.com
@@ -157,6 +164,27 @@ The bot includes configurable spam detection to reduce scores for potentially pr
 
 When enabled, posts with excessive emojis or links receive score penalties to reduce their boost priority. This helps avoid promoting content that may be spam-like or overly promotional.
 
+### Local Timeline Boosting
+
+The bot can optionally boost posts from your own instance's local timeline, in addition to trending posts from remote instances. This feature helps promote local content that has already gained some community engagement.
+
+**How it works:**
+- When `local_timeline_enabled: true`, the bot fetches posts from your instance's local timeline
+- Posts are filtered to include only those from the current day (same day as the boost run)
+- Posts must have minimum engagement: at least `local_timeline_min_engagement` total interactions (reblogs + favorites + replies)
+- The bot respects `local_timeline_boost_limit` to avoid over-promoting local content
+- Local posts are scored and ranked alongside trending posts from remote instances
+
+**Configuration:**
+```yaml
+local_timeline_enabled: true  # Enable local timeline boosting
+local_timeline_fetch_limit: 20  # How many local posts to fetch
+local_timeline_boost_limit: 2  # Max boosts from local timeline per run
+local_timeline_min_engagement: 1  # Minimum total engagement required
+```
+
+This feature is useful for smaller instances where local content may not trend globally, but deserves visibility within the community.
+
 ### Proactive Federation
 
 The bot automatically federates unfederated trending posts from remote instances. When a trending post is not yet in your local instance's database, the bot will actively federate it using `search_v2(resolve=True)` before boosting. This helps seed federation by bringing trending content from other instances into your local timeline, which is especially useful for smaller instances that want to increase content discovery for their users.
@@ -197,6 +225,7 @@ DECISION: BOOST - Status passes all checks
 ## Features
 
 - Boost trending posts from other Mastodon instances
+- Optionally boost from your own instance's local timeline with engagement filtering
 - Fetch larger candidate pools (up to 20 per instance) while boosting fewer posts for diversity
 - Separate fetch_limit and boost_limit per instance for fine-grained control
 - Update bot profile with list of subscribed instances
@@ -210,6 +239,7 @@ DECISION: BOOST - Status passes all checks
 - Prioritize posts containing weighted hashtags
 - Read timestamps whether they're strings or Python datetimes
 - Default 15-minute interval for frequent, smaller boost cycles
+- Local timeline filtering: only boost posts from the same day with minimum engagement
 
 ## Branches
 
