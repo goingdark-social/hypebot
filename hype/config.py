@@ -98,7 +98,7 @@ class Config:
     # Related hashtag scoring configuration
     related_hashtags: dict = {}  # Map hashtag -> {related_term: partial_score_multiplier}
     # Local instance timeline configuration
-    local_timeline_enabled: bool = False  # Whether to fetch from local timeline
+    local_timeline_enabled: bool = True  # Whether to fetch from local timeline
     local_timeline_fetch_limit: int = 20  # How many posts to fetch from local timeline
     local_timeline_boost_limit: int = 2  # Max boosts from local timeline per run
     local_timeline_min_engagement: int = 1  # Minimum boosts, stars, or comments required

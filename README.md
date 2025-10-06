@@ -107,7 +107,7 @@ subscribed_instances:
 
 # Local Timeline Configuration
 # Enable boosting from your own instance's local timeline
-local_timeline_enabled: false  # Set to true to enable local timeline boosting
+local_timeline_enabled: true  # Enabled by default (set to false to disable)
 local_timeline_fetch_limit: 20  # How many posts to fetch from local timeline
 local_timeline_boost_limit: 2  # Max boosts from local timeline per run
 local_timeline_min_engagement: 1  # Minimum total engagement (boosts + stars + comments) required
@@ -177,13 +177,13 @@ The bot can optionally boost posts from your own instance's local timeline, in a
 
 **Configuration:**
 ```yaml
-local_timeline_enabled: true  # Enable local timeline boosting
+local_timeline_enabled: true  # Enabled by default (set to false to disable)
 local_timeline_fetch_limit: 20  # How many local posts to fetch
 local_timeline_boost_limit: 2  # Max boosts from local timeline per run
 local_timeline_min_engagement: 1  # Minimum total engagement required
 ```
 
-This feature is useful for smaller instances where local content may not trend globally, but deserves visibility within the community.
+This feature is enabled by default and is useful for smaller instances where local content may not trend globally, but deserves visibility within the community.
 
 ### Proactive Federation
 

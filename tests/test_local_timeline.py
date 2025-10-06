@@ -10,9 +10,33 @@ from hype.hype import Hype
 from tests.test_seen_status import DummyConfig
 
 
-def test_local_timeline_disabled_by_default(tmp_path):
-    """Test that local timeline is disabled by default"""
+def test_local_timeline_enabled_by_default(tmp_path):
+    """Test that local timeline is enabled by default"""
     cfg = DummyConfig(str(tmp_path / "state.json"))
+    inst = types.SimpleNamespace(name="remote.social", fetch_limit=20, boost_limit=2)
+    cfg.subscribed_instances = [inst]
+    hype = Hype(cfg)
+    
+    # Mock remote instance
+    remote_mock = MagicMock()
+    remote_mock.trending_statuses.return_value = []
+    hype.init_client = MagicMock(return_value=remote_mock)
+    
+    # Mock bot client
+    bot_client = MagicMock()
+    bot_client.timeline_local = MagicMock(return_value=[])
+    hype.client = bot_client
+    
+    hype.boost()
+    
+    # timeline_local should be called when enabled (default)
+    assert bot_client.timeline_local.call_count == 1
+
+
+def test_local_timeline_can_be_disabled(tmp_path):
+    """Test that local timeline can be explicitly disabled"""
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    cfg.local_timeline_enabled = False  # Explicitly disable
     inst = types.SimpleNamespace(name="remote.social", fetch_limit=20, boost_limit=2)
     cfg.subscribed_instances = [inst]
     hype = Hype(cfg)
