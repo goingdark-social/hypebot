@@ -578,8 +578,8 @@ class Hype:
             if self.config.hashtag_diversity_enforced:
                 self.debug_log.info(f"Hashtag diversity: max {self.config.max_boosts_per_hashtag_per_run} per hashtag per run")
         
-        if not self.config.subscribed_instances:
-            self.log.warning("No subscribed instances configured.")
+        if not self.config.subscribed_instances and not self.config.local_timeline_enabled:
+            self.log.warning("No subscribed instances configured and local timeline is disabled.")
             return
         if not self._public_cap_available():
             self.log.info("Public cap reached. Skipping boosting this cycle.")
@@ -587,11 +587,16 @@ class Hype:
             
         # Debug: Log instance fetching
         if self.config.debug_decisions:
-            self.debug_log.info(f"Fetching from {len(self.config.subscribed_instances)} instances:")
+            instance_count = len(self.config.subscribed_instances)
+            if self.config.local_timeline_enabled:
+                instance_count += 1
+            self.debug_log.info(f"Fetching from {instance_count} sources:")
             for inst in self.config.subscribed_instances:
                 fetch_lim = getattr(inst, 'fetch_limit', getattr(inst, 'limit', 20))
                 boost_lim = getattr(inst, 'boost_limit', getattr(inst, 'limit', 4))
                 self.debug_log.info(f"  - {inst.name} (fetch: {fetch_lim}, boost: {boost_lim})")
+            if self.config.local_timeline_enabled:
+                self.debug_log.info(f"  - local (fetch: {self.config.local_timeline_fetch_limit}, boost: {self.config.local_timeline_boost_limit})")
                 
         collected = []
         for inst in self.config.subscribed_instances:
@@ -604,6 +609,17 @@ class Hype:
                 # Store the boost_limit for this instance with each entry
                 # Support backward compatibility: if no boost_limit, use limit (old behavior)
                 entry["instance_boost_limit"] = getattr(inst, 'boost_limit', getattr(inst, 'limit', 4))
+                collected.append(entry)
+        
+        # Fetch from local timeline if enabled
+        if self.config.local_timeline_enabled:
+            local_statuses = self._fetch_local_timeline_statuses()
+            if self.config.debug_decisions:
+                self.debug_log.info(f"Instance local: fetched {len(local_statuses)} statuses")
+            for entry in local_statuses:
+                s = entry["status"]
+                entry["score"] = self.score_status(s)
+                entry["instance_boost_limit"] = self.config.local_timeline_boost_limit
                 collected.append(entry)
                 
         # Debug: Log collection results
@@ -760,6 +776,49 @@ class Hype:
             if self.config.debug_decisions:
                 self.debug_log.error(f"Failed to fetch from {instance.name}: {err}")
             return []
+
+    def _fetch_local_timeline_statuses(self):
+        """Fetch posts from local timeline that meet engagement criteria and are from today."""
+        try:
+            fetch_limit = self.config.local_timeline_fetch_limit
+            if self.config.debug_decisions:
+                self.debug_log.debug(f"Fetching local timeline statuses (fetch_limit: {fetch_limit})")
+            
+            # Use the bot's own client to fetch local timeline
+            statuses = self.client.timeline_local(limit=fetch_limit)
+            
+            # Get current day for filtering
+            now = datetime.now(timezone.utc)
+            today_key = now.strftime("%Y-%m-%d")
+            
+            result = []
+            for status in statuses:
+                # Filter 1: Check if post is from today
+                created_at = self._created_at(status)
+                post_day = created_at.strftime("%Y-%m-%d")
+                if post_day != today_key:
+                    continue
+                
+                # Filter 2: Check engagement (at least 1 boost, star, or comment)
+                reblogs = status.get("reblogs_count", 0)
+                favourites = status.get("favourites_count", 0)
+                replies = status.get("replies_count", 0)
+                total_engagement = reblogs + favourites + replies
+                
+                if total_engagement < self.config.local_timeline_min_engagement:
+                    continue
+                
+                result.append({"instance": "local", "status": status})
+            
+            if self.config.debug_decisions:
+                self.debug_log.debug(f"Successfully fetched {len(result)} qualifying statuses from local timeline (from {len(statuses)} total)")
+            return result
+        except Exception as err:
+            self.log.error(f"local timeline: error - {err}")
+            if self.config.debug_decisions:
+                self.debug_log.error(f"Failed to fetch from local timeline: {err}")
+            return []
+
 
     def start(self):
         self.boost()
