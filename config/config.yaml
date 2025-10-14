@@ -22,6 +22,10 @@ subscribed_instances:
     limit: 5
   fosstodon.org:
     limit: 6
+  techhub.social:
+    limit: 4
+  indieweb.social:
+    limit: 4
   floss.social:
     limit: 4
   ioc.exchange:
@@ -48,7 +52,7 @@ author_diversity_enforced: true
 # Post scoring
 prefer_media: 0
 require_media: false
-skip_sensitive_without_cw: true
+skip_sensitive_without_cw: false
 min_reblogs: 10
 min_favourites: 10
 languages_allowlist:
@@ -62,7 +66,7 @@ seen_cache_size: 6000
 hashtag_scores:
   homelab: 20
   selfhosted: 15
-  privacy: 10
+  privacy: 30
   security: 10
   cybersecurity: 10
   kubernetes: 15
