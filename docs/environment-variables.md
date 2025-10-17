@@ -23,7 +23,7 @@ All configuration parameters can now be overridden using environment variables w
 - `HYPE_DAILY_PUBLIC_CAP` - Maximum boosts per day (default: 48)
 - `HYPE_PER_HOUR_PUBLIC_CAP` - Maximum boosts per hour (default: 1)
 - `HYPE_MAX_BOOSTS_PER_RUN` - Maximum boosts per cycle (default: 5)
-- `HYPE_MAX_BOOSTS_PER_AUTHOR_PER_DAY` - Max boosts per author per day (default: 1)
+- `HYPE_MAX_BOOSTS_PER_AUTHOR_PER_DAY` - Max boosts per author within a 24-hour rolling window (default: 1)
 
 ### Content Filtering
 - `HYPE_REQUIRE_MEDIA` - Only boost posts with media attachments (default: true)
@@ -39,9 +39,11 @@ All configuration parameters can now be overridden using environment variables w
 - `HYPE_AGE_DECAY_HALF_LIFE_HOURS` - Hours for score to halve (default: 24.0)
 
 ### Diversity Controls
-- `HYPE_AUTHOR_DIVERSITY_ENFORCED` - Enforce author diversity (default: true)
+- `HYPE_AUTHOR_DIVERSITY_ENFORCED` - Enforce author diversity using a 24-hour rolling window (default: true)
 - `HYPE_HASHTAG_DIVERSITY_ENFORCED` - Enforce hashtag diversity (default: false)
 - `HYPE_MAX_BOOSTS_PER_HASHTAG_PER_RUN` - Max boosts per hashtag per run (default: 1)
+
+**Note on Author Diversity**: When enabled, the bot tracks the timestamp of when each author was last boosted and prevents the same author from being boosted again until 24 hours have elapsed. This is a true rolling window, not a calendar-day reset, ensuring diverse content even across day boundaries.
 
 ### Spam Detection
 - `HYPE_SPAM_EMOJI_PENALTY` - Points deducted per excess emoji (default: 0)
