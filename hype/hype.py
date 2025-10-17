@@ -104,12 +104,14 @@ class Hype:
                 with open(self.config.state_path, "r") as handle:
                     data = json.load(handle)
                     data.setdefault("seen_status_ids", [])
+                    data.setdefault("author_boost_timestamps", {})
                     return data
         except Exception:
             pass
         return {
             "seen_status_ids": [],
             "authors_boosted_today": {},
+            "author_boost_timestamps": {},
             "day": "",
             "day_count": 0,
             "hour": "",
@@ -119,6 +121,14 @@ class Hype:
     def _save_state(self):
         self.state["seen_status_ids"] = list(self._seen)
         self.state["authors_boosted_today"] = self._boosted_today
+        # Clean up old author timestamps (older than 24 hours)
+        now = datetime.now(timezone.utc).timestamp()
+        cutoff = now - (24 * 60 * 60)  # 24 hours ago
+        self.state["author_boost_timestamps"] = {
+            author: timestamp
+            for author, timestamp in self.state.get("author_boost_timestamps", {}).items()
+            if timestamp > cutoff
+        }
         try:
             with open(self.config.state_path, "w") as handle:
                 json.dump(self.state, handle)
@@ -173,11 +183,17 @@ class Hype:
         sid_seen = sid in self._seen
         url_seen = url in self._seen if url else False
         already_reblogged = status.get("reblogged", False)
-        author_limit_hit = (
-            self.config.author_diversity_enforced
-            and self._boosted_today.get(author, 0)
-            >= self.config.max_boosts_per_author_per_day
-        )
+        
+        # Check if author was boosted within the last 24 hours
+        author_limit_hit = False
+        if self.config.author_diversity_enforced:
+            author_boost_timestamps = self.state.get("author_boost_timestamps", {})
+            if author in author_boost_timestamps:
+                last_boost_time = author_boost_timestamps[author]
+                now = datetime.now(timezone.utc).timestamp()
+                hours_since_boost = (now - last_boost_time) / 3600
+                author_limit_hit = hours_since_boost < 24
+        
         hashtag_limit_hit = self._hashtag_diversity_hit(status)
         
         is_seen = sid_seen or url_seen or already_reblogged or author_limit_hit or hashtag_limit_hit
@@ -191,7 +207,14 @@ class Hype:
             self.debug_log.debug(f"  URL seen: {url_seen}")
             self.debug_log.debug(f"  Already reblogged: {already_reblogged}")
             if self.config.author_diversity_enforced:
-                self.debug_log.debug(f"  Author boosts today: {self._boosted_today.get(author, 0)}/{self.config.max_boosts_per_author_per_day}")
+                author_boost_timestamps = self.state.get("author_boost_timestamps", {})
+                if author in author_boost_timestamps:
+                    last_boost_time = author_boost_timestamps[author]
+                    now = datetime.now(timezone.utc).timestamp()
+                    hours_since_boost = (now - last_boost_time) / 3600
+                    self.debug_log.debug(f"  Hours since last boost: {hours_since_boost:.2f}")
+                else:
+                    self.debug_log.debug(f"  Author never boosted before")
                 self.debug_log.debug(f"  Author limit hit: {author_limit_hit}")
             if self.config.hashtag_diversity_enforced:
                 hashtags = [tag.get("name", "").lower() for tag in status.get("tags", [])]
@@ -208,8 +231,16 @@ class Hype:
         self._seen.append(sid)
         if url:
             self._seen.append(url)
+        
+        # Track author for per-day statistics (kept for backward compatibility)
         self._boosted_today[author] = self._boosted_today.get(author, 0) + 1
         self.state["authors_boosted_today"] = self._boosted_today
+        
+        # Track author boost timestamp for 24-hour enforcement
+        now = datetime.now(timezone.utc).timestamp()
+        if "author_boost_timestamps" not in self.state:
+            self.state["author_boost_timestamps"] = {}
+        self.state["author_boost_timestamps"][author] = now
         
         # Track hashtags for diversity enforcement in current run
         if self.config.hashtag_diversity_enforced:

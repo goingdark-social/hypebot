@@ -150,9 +150,9 @@ logfile_path: ""  # Path to log file for persistent logging (e.g., "/app/logs/hy
 `seen_cache_size` sets how many posts the bot keeps in memory to avoid boosting the same thing twice. A bigger cache catches more duplicates but uses more RAM and takes longer to search.
 `hashtag_scores` lets you push posts with certain hashtags to the front by assigning weights.
 `prefer_media` adds the given bonus to posts with attachments; set to `true` for a default of `1`.
-`author_diversity_enforced` respects `max_boosts_per_author_per_day` when enabled.
+`author_diversity_enforced` respects `max_boosts_per_author_per_day` when enabled. When enabled, the bot enforces a 24-hour rolling window where the same author cannot be boosted more than once within any 24-hour period, preventing the same authors from dominating the feed.
 `max_boosts_per_run` limits how many posts get boosted in each run.
-`max_boosts_per_author_per_day` stops the bot from boosting the same author over and over.
+`max_boosts_per_author_per_day` prevents the same author from being boosted multiple times within a 24-hour rolling window. This ensures diverse content and prevents any single author from dominating your timeline.
 
 ### Spam Detection
 
@@ -233,7 +233,7 @@ DECISION: BOOST - Status passes all checks
 - Normalize scores on a 0–100 scale and favor newer posts when scores tie
 - Skip duplicates across instances by tracking canonical URLs with a configurable cache
 - Enforce hourly and daily caps on public boosts
-- Limit boosts per instance per run and for any single author per day
+- Limit boosts per instance per run and for any single author per day (using a 24-hour rolling window)
 - Skip reposts and filter posts without media or missing content warnings
 - Skip posts with too few reblogs or favourites
 - Prioritize posts containing weighted hashtags
