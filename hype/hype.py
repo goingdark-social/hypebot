@@ -160,6 +160,13 @@ class Hype:
         self.state["day_count"] += 1
         self.state["hour_count"] += 1
 
+    def _safe_count(self, value) -> int:
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            return 0
+        return number if number > 0 else 0
+
     def _hashtag_diversity_hit(self, status: dict) -> bool:
         """Check if hashtag diversity limit is hit for any hashtag in the status."""
         if not self.config.hashtag_diversity_enforced:
@@ -273,9 +280,9 @@ class Hype:
         )
         
         # Check minimum engagement
-        reblogs_count = status.get("reblogs_count", 0)
-        favourites_count = status.get("favourites_count", 0)
-        replies_count = status.get("replies_count", 0)
+        reblogs_count = self._safe_count(status.get("reblogs_count", 0))
+        favourites_count = self._safe_count(status.get("favourites_count", 0))
+        replies_count = self._safe_count(status.get("replies_count", 0))
         skip_low_reblogs = reblogs_count < self.config.min_reblogs
         skip_low_favourites = favourites_count < self.config.min_favourites
         skip_low_replies = replies_count < self.config.min_replies
@@ -381,9 +388,9 @@ class Hype:
         tag_score += related_score
         
         # Calculate engagement scores
-        reblogs_count = status.get("reblogs_count", 0)
-        favourites_count = status.get("favourites_count", 0)
-        replies_count = status.get("replies_count", 0)
+        reblogs_count = self._safe_count(status.get("reblogs_count", 0))
+        favourites_count = self._safe_count(status.get("favourites_count", 0))
+        replies_count = self._safe_count(status.get("replies_count", 0))
         reblogs = math.log1p(reblogs_count) * 2
         favourites = math.log1p(favourites_count)
         replies = math.log1p(replies_count) * 1.5  # Weight replies between favorites and reblogs
@@ -831,9 +838,9 @@ class Hype:
                     continue
                 
                 # Filter 2: Check engagement (at least 1 boost, star, or comment)
-                reblogs = status.get("reblogs_count", 0)
-                favourites = status.get("favourites_count", 0)
-                replies = status.get("replies_count", 0)
+                reblogs = self._safe_count(status.get("reblogs_count", 0))
+                favourites = self._safe_count(status.get("favourites_count", 0))
+                replies = self._safe_count(status.get("replies_count", 0))
                 total_engagement = reblogs + favourites + replies
                 
                 if total_engagement < self.config.local_timeline_min_engagement:

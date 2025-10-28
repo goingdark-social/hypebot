@@ -30,7 +30,7 @@ All configuration parameters can now be overridden using environment variables w
 - `HYPE_SKIP_SENSITIVE_WITHOUT_CW` - Skip sensitive posts without content warnings (default: true)
 - `HYPE_MIN_REBLOGS` - Minimum reblogs required (default: 0)
 - `HYPE_MIN_FAVOURITES` - Minimum favourites required (default: 0)
-- `HYPE_MIN_REPLIES` - **NEW**: Minimum replies required (default: 0)
+- `HYPE_MIN_REPLIES` - Minimum replies required (default: 2)
 
 ### Quality and Scoring
 - `HYPE_MIN_SCORE_THRESHOLD` - Minimum score threshold for boosting (default: 0)
@@ -117,8 +117,8 @@ Existing `config.yaml` files continue to work unchanged. Environment variables s
 
 The `min_replies` parameter (environment variable: `HYPE_MIN_REPLIES`) allows you to filter out posts that don't have enough community engagement in the form of replies. This helps ensure that boosted content has generated actual discussion.
 
-- **Default**: 0 (disabled)
-- **Recommended for quality filtering**: 2-5 replies minimum
+- **Default**: 2 (the bot only boosts posts with at least two replies)
+- **Recommended for quality filtering**: 3-5 replies minimum
 - **Strict quality control**: 10+ replies minimum
 
 Posts with fewer replies than the threshold will be filtered out before scoring and boosting consideration.

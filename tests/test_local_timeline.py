@@ -96,7 +96,7 @@ def test_local_timeline_filters_old_posts(tmp_path):
             "created_at": today,
             "reblogs_count": 5,
             "favourites_count": 3,
-            "replies_count": 1,
+            "replies_count": 2,
             "account": {"acct": "user1@local"},
             "tags": [],
             "content": "Today's post"
@@ -162,7 +162,7 @@ def test_local_timeline_filters_low_engagement(tmp_path):
             "created_at": today,
             "reblogs_count": 1,
             "favourites_count": 1,
-            "replies_count": 1,  # Total: 3 (meets threshold)
+            "replies_count": 2,
             "account": {"acct": "user2@local"},
             "tags": [],
             "content": "Good engagement post"
@@ -204,7 +204,7 @@ def test_local_timeline_respects_boost_limit(tmp_path):
             "created_at": today,
             "reblogs_count": 5,
             "favourites_count": 5,
-            "replies_count": 1,
+            "replies_count": 2,
             "account": {"acct": f"user{i}@local"},
             "tags": [],
             "content": f"Post {i}"
@@ -246,7 +246,7 @@ def test_local_timeline_with_remote_instances(tmp_path):
         "created_at": today,
         "reblogs_count": 5,
         "favourites_count": 5,
-        "replies_count": 1,
+        "replies_count": 2,
         "account": {"acct": "localuser@local"},
         "tags": [],
         "content": "Local post"
@@ -260,7 +260,7 @@ def test_local_timeline_with_remote_instances(tmp_path):
         "created_at": today,
         "reblogs_count": 10,
         "favourites_count": 10,
-        "replies_count": 1,
+        "replies_count": 2,
         "account": {"acct": "remoteuser@remote.social"},
         "tags": [],
         "content": "Remote post"

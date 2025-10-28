@@ -70,7 +70,7 @@ class Config:
     skip_sensitive_without_cw: bool = True
     min_reblogs: int = 10
     min_favourites: int = 10
-    min_replies: int = 0
+    min_replies: int = 2
     languages_allowlist: list = ["en"]
     state_path: str = "/app/secrets/state.json"
     seen_cache_size: int = 6000
