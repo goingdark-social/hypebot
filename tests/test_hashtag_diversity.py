@@ -147,19 +147,23 @@ def test_hashtag_diversity_resets_between_runs(tmp_path):
     cfg = DummyConfig(str(tmp_path / "state.json"))
     cfg.hashtag_diversity_enforced = True
     cfg.max_boosts_per_hashtag_per_run = 1
+    cfg.min_replies = 2
     inst = types.SimpleNamespace(name="test", limit=1)
     cfg.subscribed_instances = [inst]
     hype = Hype(cfg)
-    
+
     # Setup mocks for first run
     hype.client = MagicMock()
     m = MagicMock()
-    m.trending_statuses.return_value = [{"uri": "https://a/1", "tags": [{"name": "python"}]}]
+    m.trending_statuses.return_value = [
+        {"id": "remote-1", "uri": "https://a/1", "tags": [{"name": "python"}], "replies_count": 2}
+    ]
     hype.init_client = MagicMock(return_value=m)
     
     # Create status with hashtags for search result
     s1 = status_data("1", "https://a/1")
     s1["tags"] = [{"name": "python"}]
+    s1["replies_count"] = 2
     hype.client.search_v2.return_value = {"statuses": [s1]}
     
     # First boost run
@@ -169,9 +173,12 @@ def test_hashtag_diversity_resets_between_runs(tmp_path):
     assert "python" in hype._hashtags_boosted_this_run
     
     # Setup for second run with same hashtag
-    m.trending_statuses.return_value = [{"uri": "https://a/2", "tags": [{"name": "python"}]}]
+    m.trending_statuses.return_value = [
+        {"id": "remote-2", "uri": "https://a/2", "tags": [{"name": "python"}], "replies_count": 2}
+    ]
     s2 = status_data("2", "https://a/2")
     s2["tags"] = [{"name": "python"}]
+    s2["replies_count"] = 2
     hype.client.search_v2.return_value = {"statuses": [s2]}
     
     # Second boost run should reset hashtag tracking

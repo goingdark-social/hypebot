@@ -64,16 +64,18 @@ def test_min_replies_filtering(tmp_path):
     assert hype._should_skip_status(s_high) == False
 
 
-def test_min_replies_disabled_by_default(tmp_path):
-    """Test that minimum replies filtering is disabled by default."""
+def test_min_replies_threshold_blocks_low_reply_posts(tmp_path):
+    """Posts below the replies threshold are filtered out."""
     cfg = DummyConfig(str(tmp_path / "state.json"))
-    assert cfg.min_replies == 0
+    cfg.min_replies = 2
     hype = Hype(cfg)
-    
-    # Should not skip any post due to replies when min_replies is 0
+
     s = status_data("1", "https://a/1")
-    s["replies_count"] = 0
-    assert hype._should_skip_status(s) == False
+    s["replies_count"] = 1
+    assert hype._should_skip_status(s) is True
+
+    s["replies_count"] = 2
+    assert hype._should_skip_status(s) is False
 
 
 def test_combined_engagement_filtering(tmp_path):
@@ -101,12 +103,24 @@ def test_missing_replies_count_defaults_to_zero(tmp_path):
     cfg = DummyConfig(str(tmp_path / "state.json"))
     cfg.min_replies = 1
     hype = Hype(cfg)
-    
-    # Status without replies_count field should default to 0 and be skipped
+
     s = status_data("1", "https://a/1")
-    # Don't set replies_count - should default to 0
+    s.pop("replies_count", None)
     assert hype._should_skip_status(s) == True
-    
-    # Scoring should also handle missing field gracefully
+
     score = hype.score_status(s)
-    assert score >= 0  # Should not crash, should get some score
+    assert score >= 0
+
+
+def test_none_replies_count_treated_as_zero(tmp_path):
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    cfg.min_replies = 2
+    hype = Hype(cfg)
+
+    s = status_data("1", "https://a/1")
+    s["replies_count"] = None
+    assert hype._should_skip_status(s) is True
+
+    s["replies_count"] = "5"
+    assert hype._should_skip_status(s) is False
+

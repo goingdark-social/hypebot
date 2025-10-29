@@ -119,7 +119,7 @@ subscribed_instances:
         with patch.dict(os.environ, {}, clear=True):
             config = Config()
             # Should use default values (updated to production defaults)
-            assert config.min_replies == 0
+            assert config.min_replies == 2
             assert config.interval == 15
             assert config.daily_public_cap == 96
             assert config.per_hour_public_cap == 5

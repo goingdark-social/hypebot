@@ -3,6 +3,8 @@ import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from mastodon.errors import MastodonNotFoundError
+
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -14,6 +16,7 @@ from tests.test_seen_status import DummyConfig, status_data
 def test_complete_quality_and_related_hashtag_integration(tmp_path):
     """Test the complete integration of quality threshold and related hashtag features."""
     cfg = DummyConfig(str(tmp_path / "state.json"))
+    cfg.min_replies = 2
     
     # Configure quality threshold and related hashtags
     cfg.min_score_threshold = 8  # Higher threshold to filter out post #3
@@ -40,52 +43,62 @@ def test_complete_quality_and_related_hashtag_integration(tmp_path):
     trending = [
         # High engagement post with homelab hashtag - should definitely pass
         {
+            "id": "remote-1",
             "uri": "https://example.com/1",
             "reblogs_count": 20,
             "favourites_count": 10,
             "created_at": "2024-01-01T00:00:00Z",
             "content": "Check out my new homelab setup!",
             "tags": [{"name": "homelab"}],
+            "replies_count": 2,
         },
         
         # Medium engagement post with related content - should pass with bonus
         {
-            "uri": "https://example.com/2", 
+            "id": "remote-2",
+            "uri": "https://example.com/2",
             "reblogs_count": 5,
             "favourites_count": 3,
             "created_at": "2024-01-01T00:00:00Z",
             "content": "I love self-hosting my applications at home",
             "tags": [],
+            "replies_count": 2,
         },
         
         # Low engagement post with related content - should fail threshold
         {
+            "id": "remote-3",
             "uri": "https://example.com/3",
-            "reblogs_count": 1,
-            "favourites_count": 1, 
+            "reblogs_count": 0,
+            "favourites_count": 0,
             "created_at": "2024-01-01T00:00:00Z",
             "content": "Just started self-hosting, any tips?",
             "tags": [],
+            "replies_count": 2,
         },
         
         # High engagement post with Python content - should pass
         {
+            "id": "remote-4",
             "uri": "https://example.com/4",
             "reblogs_count": 15,
             "favourites_count": 8,
             "created_at": "2024-01-01T00:00:00Z",
             "content": "Love programming in different languages",
             "tags": [],
+            "replies_count": 2,
         },
         
         # Low engagement post with no relevant content - should fail  
         {
+            "id": "remote-5",
             "uri": "https://example.com/5",
-            "reblogs_count": 2,
-            "favourites_count": 1,
-            "created_at": "2024-01-01T00:00:00Z", 
+            "reblogs_count": 0,
+            "favourites_count": 0,
+            "created_at": "2024-01-01T00:00:00Z",
             "content": "Random post about nothing special",
             "tags": [],
+            "replies_count": 2,
         },
     ]
     
@@ -94,18 +107,27 @@ def test_complete_quality_and_related_hashtag_integration(tmp_path):
     hype.init_client = MagicMock(return_value=m)
     
     client = MagicMock()
-    # Only posts 1, 2, and 4 should pass the quality threshold
-    client.search_v2.side_effect = [
-        {"statuses": [status_data("1", "https://example.com/1")]},
-        {"statuses": [status_data("2", "https://example.com/2")]},
-        {"statuses": [status_data("4", "https://example.com/4")]},
+    client.status_reblog.side_effect = [
+        MastodonNotFoundError("Not found"), None,
+        MastodonNotFoundError("Not found"), None,
+        MastodonNotFoundError("Not found"), None,
     ]
+
+    def search_side_effect(uri, result_type=None, resolve=None):
+        responses = {
+            "https://example.com/1": {"statuses": [{**status_data("1", "https://example.com/1"), "replies_count": 2}]},
+            "https://example.com/2": {"statuses": [{**status_data("2", "https://example.com/2"), "replies_count": 2}]},
+            "https://example.com/4": {"statuses": [{**status_data("4", "https://example.com/4"), "replies_count": 2}]},
+        }
+        return responses.get(uri, {"statuses": []})
+
+    client.search_v2.side_effect = search_side_effect
     hype.client = client
     
     hype.boost()
     
     # Verify only the qualifying posts were boosted
-    assert client.status_reblog.call_count == 3
+    assert client.status_reblog.call_count == 6
     assert client.search_v2.call_count == 3
     
     # Verify the search calls were for the expected URIs (in score-sorted order)
@@ -155,6 +177,9 @@ def test_quality_threshold_with_all_posts_failing(tmp_path):
     hype.init_client = MagicMock(return_value=m)
     
     client = MagicMock()
+    client.status_reblog.side_effect = [
+        MastodonNotFoundError("Not found"), None
+    ]
     hype.client = client
     
     hype.boost()
@@ -174,6 +199,7 @@ def test_related_hashtag_scoring_affects_quality_threshold(tmp_path):
             "self-hosting": 0.5,  # 5 points bonus
         }
     }
+    cfg.min_replies = 2
     
     inst = types.SimpleNamespace(name="test_instance", limit=2)
     cfg.subscribed_instances = [inst]
@@ -183,21 +209,25 @@ def test_related_hashtag_scoring_affects_quality_threshold(tmp_path):
     trending = [
         # This post would fail without the related hashtag bonus
         {
+            "id": "remote-related-1",
             "uri": "https://example.com/1",
             "reblogs_count": 3,     # ~2.8 points engagement
-            "favourites_count": 2,  # ~1.1 points engagement  
+            "favourites_count": 2,  # ~1.1 points engagement
             "created_at": "2024-01-01T00:00:00Z",
             "content": "I love self-hosting apps",  # +5 points related bonus = ~8.9 total
             "tags": [],
+            "replies_count": 2,
         },
         # This post fails even with related content (if any)
         {
+            "id": "remote-related-2",
             "uri": "https://example.com/2",
             "reblogs_count": 1,     # ~1.4 points engagement
             "favourites_count": 1,  # ~0.7 points engagement
-            "created_at": "2024-01-01T00:00:00Z", 
+            "created_at": "2024-01-01T00:00:00Z",
             "content": "Just a random post",  # No bonus = ~2.1 total
             "tags": [],
+            "replies_count": 2,
         },
     ]
     
@@ -206,11 +236,22 @@ def test_related_hashtag_scoring_affects_quality_threshold(tmp_path):
     hype.init_client = MagicMock(return_value=m)
     
     client = MagicMock()
-    client.search_v2.return_value = {"statuses": [status_data("1", "https://example.com/1")]}
+    def single_search_side_effect(uri, result_type=None, resolve=None):
+        if uri == "https://example.com/1":
+            return {"statuses": [{**status_data("1", "https://example.com/1"), "replies_count": 2}]}
+        return {"statuses": []}
+
+    client.search_v2.side_effect = single_search_side_effect
+    client.status_reblog.side_effect = [
+        MastodonNotFoundError("Not found"), None
+    ]
+    client.status_reblog.side_effect = [
+        MastodonNotFoundError("Not found"), None
+    ]
     hype.client = client
     
     hype.boost()
     
     # Only the first post should pass thanks to the related hashtag bonus
-    assert client.status_reblog.call_count == 1
+    assert client.status_reblog.call_count == 2
     assert client.search_v2.call_count == 1

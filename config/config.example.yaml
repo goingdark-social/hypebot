@@ -55,7 +55,7 @@ require_media: false        # Don't require media (allow text posts)
 skip_sensitive_without_cw: true
 min_reblogs: 0
 min_favourites: 0
-min_replies: 0
+min_replies: 2
 
 # Language filtering (empty = all languages)
 languages_allowlist: []
