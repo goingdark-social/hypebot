@@ -1,6 +1,8 @@
 ![](./res/hype_header.png)
 
 # hype
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fgoingdark-social%2Fhypebot.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fgoingdark-social%2Fhypebot?ref=badge_shield)
+
 
 This Mastodon bot pulls trending posts from chosen instances, ranks them, and boosts the top results to your timeline. You decide which instances it fetches and how much you want to see per instance.
 
@@ -247,3 +249,7 @@ Work starts on `develop`. When it's merged into `main` and deleted, a workflow r
 
 ---
  
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fgoingdark-social%2Fhypebot.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fgoingdark-social%2Fhypebot?ref=badge_large)
