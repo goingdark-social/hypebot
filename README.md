@@ -154,6 +154,29 @@ logfile_path: ""  # Path to log file for persistent logging (e.g., "/app/logs/hy
 `max_boosts_per_run` limits how many posts get boosted in each run.
 `max_boosts_per_author_per_day` prevents the same author from being boosted multiple times within a 24-hour rolling window. This ensures diverse content and prevents any single author from dominating your timeline.
 
+### Language Filtering
+
+The bot can filter posts based on language to ensure you only see content in languages you understand:
+
+```yaml
+languages_allowlist:
+  - en  # English
+  - sv  # Swedish
+```
+
+**How it works:**
+- When `languages_allowlist` is configured, only posts in the specified languages will be boosted
+- The bot first checks the language metadata provided by Mastodon
+- **Automatic Language Detection**: If Mastodon doesn't provide language information, the bot automatically detects the language from post content using the `langdetect` library
+- Posts with undetectable or non-allowed languages are skipped
+- Leave the list empty (`languages_allowlist: []`) to disable language filtering
+
+**Language Detection:**
+- Content is analyzed after removing HTML tags, URLs, mentions, and hashtags
+- Very short posts (less than 10 characters) that can't be reliably detected are skipped by default
+- Mastodon's language detection is always trusted when available (fallback detection only runs when language is missing)
+- Detection results are logged when `debug_decisions: true` is enabled
+
 ### Spam Detection
 
 The bot includes configurable spam detection to reduce scores for potentially promotional content:
@@ -236,6 +259,7 @@ DECISION: BOOST - Status passes all checks
 - Limit boosts per instance per run and for any single author per day (using a 24-hour rolling window)
 - Skip reposts and filter posts without media or missing content warnings
 - Skip posts with too few reblogs or favourites
+- **Language filtering with automatic detection**: Filter posts by language using Mastodon metadata or automatic content-based detection
 - Prioritize posts containing weighted hashtags
 - Read timestamps whether they're strings or Python datetimes
 - Default 15-minute interval for frequent, smaller boost cycles
