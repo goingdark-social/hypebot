@@ -128,7 +128,6 @@ min_reblogs: 0
 min_favourites: 0
 languages_allowlist:
   - en
-  - sv
 state_path: "/app/secrets/state.json"
 seen_cache_size: 6000
 hashtag_scores:
@@ -160,22 +159,20 @@ The bot can filter posts based on language to ensure you only see content in lan
 
 ```yaml
 languages_allowlist:
-  - en  # English
-  - sv  # Swedish
+  - en  # English only
 ```
 
 **How it works:**
 - When `languages_allowlist` is configured, only posts in the specified languages will be boosted
-- The bot first checks the language metadata provided by Mastodon
-- **Automatic Language Detection**: If Mastodon doesn't provide language information, the bot automatically detects the language from post content using the `langdetect` library
+- **The bot always detects language from post content** using the `langdetect` library to verify the actual language, regardless of what Mastodon reports
+- Mastodon's language detection can be incorrect, so the bot analyzes the actual content to determine the true language
 - Posts with undetectable or non-allowed languages are skipped
 - Leave the list empty (`languages_allowlist: []`) to disable language filtering
 
 **Language Detection:**
 - Content is analyzed after removing HTML tags, URLs, mentions, and hashtags
 - Very short posts (less than 10 characters) that can't be reliably detected are skipped by default
-- Mastodon's language detection is always trusted when available (fallback detection only runs when language is missing)
-- Detection results are logged when `debug_decisions: true` is enabled
+- Detection results are logged when `debug_decisions: true` is enabled, showing both detected and Mastodon-reported languages for comparison
 
 ### Spam Detection
 

@@ -89,18 +89,18 @@ def test_language_detection_with_mentions_and_hashtags(tmp_path):
     assert hype._should_skip_status(s) is False
 
 
-def test_language_detection_respects_mastodon_provided_language(tmp_path):
-    """When Mastodon provides language, use it instead of detecting"""
+def test_language_detection_overrides_mastodon_language(tmp_path):
+    """Bot always detects language from content, ignoring Mastodon's potentially incorrect detection"""
     cfg = DummyConfig(str(tmp_path / "state.json"))
     cfg.languages_allowlist = ["en"]
     hype = Hype(cfg)
     
-    # Create a status where Mastodon detected French
+    # Create a status where Mastodon incorrectly detected English for Dutch content
     s = status_data("1", "https://a/1")
-    s["language"] = "fr"  # Mastodon detected French
-    s["content"] = "This looks like English but Mastodon says it's French"
+    s["language"] = "en"  # Mastodon incorrectly detected as English
+    s["content"] = "<p>Dit is een langere Nederlandse tekst die Mastodon verkeerd heeft gedetecteerd als Engels.</p>"
     
-    # Should skip because Mastodon said it's French (trust Mastodon over detection)
+    # Should skip because our detection finds it's Dutch, not English (override Mastodon)
     assert hype._should_skip_status(s) is True
 
 

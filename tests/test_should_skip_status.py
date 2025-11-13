@@ -24,7 +24,7 @@ from tests.test_seen_status import DummyConfig, status_data
             False,
         ),
         ({"languages_allowlist": ["en"]}, {"language": "fr"}, True),
-        ({"languages_allowlist": ["en"]}, {"language": "en"}, False),
+        ({"languages_allowlist": ["en"]}, {"language": "en", "content": "This is English content for testing."}, False),
         # Test language filtering with None/empty values (edge cases)
         ({"languages_allowlist": ["en"]}, {"language": None}, True),
         ({"languages_allowlist": ["en"]}, {"language": ""}, True),

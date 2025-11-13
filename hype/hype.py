@@ -315,14 +315,17 @@ class Hype:
         )
         
         # Check language allowlist
-        lang = (status.get("language") or "").lower()
-        
-        # If Mastodon didn't detect a language, try to detect it ourselves
-        if not lang and self.config.languages_allowlist:
+        # Always detect language from content ourselves since Mastodon's detection can be incorrect
+        lang = ""
+        if self.config.languages_allowlist:
             lang = self._detect_language_from_content(status)
-            if self.config.debug_decisions and lang:
+            if self.config.debug_decisions:
                 sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
-                self.debug_log.debug(f"STATUS {sid_display} | Language detected from content: '{lang}'")
+                mastodon_lang = (status.get("language") or "").lower()
+                if lang:
+                    self.debug_log.debug(f"STATUS {sid_display} | Language detected from content: '{lang}' (Mastodon reported: '{mastodon_lang}')")
+                else:
+                    self.debug_log.debug(f"STATUS {sid_display} | Language detection failed (Mastodon reported: '{mastodon_lang}')")
         
         skip_language = (
             self.config.languages_allowlist
