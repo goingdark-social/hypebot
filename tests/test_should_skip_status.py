@@ -25,6 +25,14 @@ from tests.test_seen_status import DummyConfig, status_data
         ),
         ({"languages_allowlist": ["en"]}, {"language": "fr"}, True),
         ({"languages_allowlist": ["en"]}, {"language": "en"}, False),
+        # Test language filtering with None/empty values (edge cases)
+        ({"languages_allowlist": ["en"]}, {"language": None}, True),
+        ({"languages_allowlist": ["en"]}, {"language": ""}, True),
+        ({"languages_allowlist": ["en"]}, {"language": "nl"}, True),  # Dutch
+        # Test with empty allowlist (no language filtering)
+        ({"languages_allowlist": []}, {"language": "fr"}, False),
+        ({"languages_allowlist": []}, {"language": None}, False),
+        ({"languages_allowlist": []}, {"language": ""}, False),
         ({"min_reblogs": 3}, {"reblogs_count": 2}, True),
         ({"min_reblogs": 3}, {"reblogs_count": 3}, False),
         ({"min_favourites": 4}, {"favourites_count": 3}, True),
