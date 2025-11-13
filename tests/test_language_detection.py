@@ -178,3 +178,67 @@ def test_detect_language_from_content_helper(tmp_path):
     status_short = {"content": "Hi"}
     lang = hype._detect_language_from_content(status_short)
     assert lang == ""  # Too short to detect reliably
+
+
+def test_use_mastodon_language_detection_enabled(tmp_path):
+    """When use_mastodon_language_detection is True, trust Mastodon's language field"""
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    cfg.languages_allowlist = ["en"]
+    cfg.use_mastodon_language_detection = True
+    hype = Hype(cfg)
+    
+    # Mastodon says English, even though content is Dutch
+    s = status_data("1", "https://a/1")
+    s["language"] = "en"  # Mastodon says English
+    s["content"] = "<p>Dit is een langere Nederlandse tekst die Mastodon verkeerd heeft gedetecteerd.</p>"
+    
+    # Should NOT skip because we trust Mastodon's "en" (even though it's wrong)
+    assert hype._should_skip_status(s) is False
+
+
+def test_use_mastodon_language_detection_disabled_default(tmp_path):
+    """By default (use_mastodon_language_detection=False), detect from content"""
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    cfg.languages_allowlist = ["en"]
+    # use_mastodon_language_detection defaults to False
+    hype = Hype(cfg)
+    
+    # Mastodon says English, but content is Dutch
+    s = status_data("1", "https://a/1")
+    s["language"] = "en"  # Mastodon says English (incorrect)
+    s["content"] = "<p>Dit is een langere Nederlandse tekst die Mastodon verkeerd heeft gedetecteerd.</p>"
+    
+    # Should skip because we detect it's Dutch (override Mastodon)
+    assert hype._should_skip_status(s) is True
+
+
+def test_use_mastodon_language_detection_with_french(tmp_path):
+    """When use_mastodon_language_detection is True, trust Mastodon even if wrong"""
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    cfg.languages_allowlist = ["en"]
+    cfg.use_mastodon_language_detection = True
+    hype = Hype(cfg)
+    
+    # Mastodon says French, even though content is English
+    s = status_data("1", "https://a/1")
+    s["language"] = "fr"  # Mastodon says French
+    s["content"] = "<p>This is actually English content that Mastodon incorrectly detected.</p>"
+    
+    # Should skip because we trust Mastodon's "fr" (even though it's wrong)
+    assert hype._should_skip_status(s) is True
+
+
+def test_use_mastodon_language_detection_disabled_correct_english(tmp_path):
+    """With langdetect mode, correctly allow English content"""
+    cfg = DummyConfig(str(tmp_path / "state.json"))
+    cfg.languages_allowlist = ["en"]
+    cfg.use_mastodon_language_detection = False
+    hype = Hype(cfg)
+    
+    # Mastodon says French, but content is actually English
+    s = status_data("1", "https://a/1")
+    s["language"] = "fr"  # Mastodon says French (incorrect)
+    s["content"] = "<p>This is actually English content that we should allow based on detection.</p>"
+    
+    # Should NOT skip because we detect it's English (override Mastodon's "fr")
+    assert hype._should_skip_status(s) is False

@@ -315,17 +315,24 @@ class Hype:
         )
         
         # Check language allowlist
-        # Always detect language from content ourselves since Mastodon's detection can be incorrect
         lang = ""
         if self.config.languages_allowlist:
-            lang = self._detect_language_from_content(status)
-            if self.config.debug_decisions:
-                sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
-                mastodon_lang = (status.get("language") or "").lower()
-                if lang:
-                    self.debug_log.debug(f"STATUS {sid_display} | Language detected from content: '{lang}' (Mastodon reported: '{mastodon_lang}')")
-                else:
-                    self.debug_log.debug(f"STATUS {sid_display} | Language detection failed (Mastodon reported: '{mastodon_lang}')")
+            if self.config.use_mastodon_language_detection:
+                # Use Mastodon's language detection (can be incorrect)
+                lang = (status.get("language") or "").lower()
+                if self.config.debug_decisions:
+                    sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
+                    self.debug_log.debug(f"STATUS {sid_display} | Using Mastodon's language: '{lang}'")
+            else:
+                # Always detect language from content (default, more reliable)
+                lang = self._detect_language_from_content(status)
+                if self.config.debug_decisions:
+                    sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
+                    mastodon_lang = (status.get("language") or "").lower()
+                    if lang:
+                        self.debug_log.debug(f"STATUS {sid_display} | Language detected from content: '{lang}' (Mastodon reported: '{mastodon_lang}')")
+                    else:
+                        self.debug_log.debug(f"STATUS {sid_display} | Language detection failed (Mastodon reported: '{mastodon_lang}')")
         
         skip_language = (
             self.config.languages_allowlist

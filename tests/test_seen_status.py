@@ -30,6 +30,7 @@ class DummyConfig:
         self.min_favourites = 0
         self.min_replies = 0
         self.languages_allowlist = []
+        self.use_mastodon_language_detection = False  # Use langdetect by default
         self.state_path = path
         self.seen_cache_size = 6000
         self.hashtag_scores = {}
