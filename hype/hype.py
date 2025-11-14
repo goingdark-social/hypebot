@@ -6,10 +6,12 @@ import time
 from collections import deque
 from datetime import datetime, timezone
 import math
+import html
 
 import schedule
 from mastodon import Mastodon
 from mastodon.errors import MastodonAPIError, MastodonNotFoundError
+from langdetect import detect, LangDetectException
 
 from .config import Config
 
@@ -256,6 +258,46 @@ class Hype:
                 tag_name = tag.get("name", "").lower()
                 self._hashtags_boosted_this_run.append(tag_name)
 
+    def _detect_language_from_content(self, status: dict) -> str:
+        """
+        Detect language from post content using langdetect library.
+        Returns the detected language code (e.g., 'en', 'nl', 'fr') or empty string if detection fails.
+        """
+        try:
+            # Get content and clean it
+            content = status.get("content", "") or ""
+            if not content.strip():
+                return ""
+            
+            # Remove HTML tags and decode HTML entities
+            clean_content = html.unescape(re.sub(r'<[^>]+>', '', content))
+            
+            # Remove URLs to avoid language detection from links
+            clean_content = re.sub(r'https?://\S+', '', clean_content)
+            
+            # Remove mentions and hashtags as they can interfere with detection
+            clean_content = re.sub(r'@\S+', '', clean_content)
+            clean_content = re.sub(r'#\S+', '', clean_content)
+            
+            # Strip whitespace
+            clean_content = clean_content.strip()
+            
+            # Need at least some text to detect language reliably
+            if len(clean_content) < 10:
+                return ""
+            
+            # Detect language
+            detected_lang = detect(clean_content)
+            return detected_lang.lower()
+        except LangDetectException:
+            # Language detection failed (e.g., no text features, too short, etc.)
+            return ""
+        except Exception as e:
+            # Unexpected error, log it
+            if self.config.debug_decisions:
+                self.debug_log.warning(f"Language detection error: {e}")
+            return ""
+
     def _should_skip_status(self, status: dict) -> bool:
         sid = status.get("id", "unknown")
         
@@ -273,7 +315,25 @@ class Hype:
         )
         
         # Check language allowlist
-        lang = (status.get("language") or "").lower()
+        lang = ""
+        if self.config.languages_allowlist:
+            if self.config.use_mastodon_language_detection:
+                # Use Mastodon's language detection (can be incorrect)
+                lang = (status.get("language") or "").lower()
+                if self.config.debug_decisions:
+                    sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
+                    self.debug_log.debug(f"STATUS {sid_display} | Using Mastodon's language: '{lang}'")
+            else:
+                # Always detect language from content (default, more reliable)
+                lang = self._detect_language_from_content(status)
+                if self.config.debug_decisions:
+                    sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
+                    mastodon_lang = (status.get("language") or "").lower()
+                    if lang:
+                        self.debug_log.debug(f"STATUS {sid_display} | Language detected from content: '{lang}' (Mastodon reported: '{mastodon_lang}')")
+                    else:
+                        self.debug_log.debug(f"STATUS {sid_display} | Language detection failed (Mastodon reported: '{mastodon_lang}')")
+        
         skip_language = (
             self.config.languages_allowlist
             and lang not in self.config.languages_allowlist

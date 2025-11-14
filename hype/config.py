@@ -72,6 +72,7 @@ class Config:
     min_favourites: int = 10
     min_replies: int = 2
     languages_allowlist: list = ["en"]
+    use_mastodon_language_detection: bool = False  # Use langdetect by default; set to True to trust Mastodon's language field
     state_path: str = "/app/secrets/state.json"
     seen_cache_size: int = 6000
     hashtag_scores: dict = {
@@ -265,6 +266,7 @@ class Config:
             self.min_favourites = get_config_value("HYPE_MIN_FAVOURITES", config, "min_favourites", self.min_favourites, int)
             self.min_replies = get_config_value("HYPE_MIN_REPLIES", config, "min_replies", self.min_replies, int)
             self.languages_allowlist = get_config_value("HYPE_LANGUAGES_ALLOWLIST", config, "languages_allowlist", self.languages_allowlist, list)
+            self.use_mastodon_language_detection = get_config_value("HYPE_USE_MASTODON_LANGUAGE_DETECTION", config, "use_mastodon_language_detection", self.use_mastodon_language_detection, bool)
             self.state_path = get_config_value("HYPE_STATE_PATH", config, "state_path", self.state_path, str)
             self.seen_cache_size = get_config_value("HYPE_SEEN_CACHE_SIZE", config, "seen_cache_size", self.seen_cache_size, int)
             

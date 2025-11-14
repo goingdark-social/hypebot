@@ -128,7 +128,6 @@ min_reblogs: 0
 min_favourites: 0
 languages_allowlist:
   - en
-  - sv
 state_path: "/app/secrets/state.json"
 seen_cache_size: 6000
 hashtag_scores:
@@ -153,6 +152,37 @@ logfile_path: ""  # Path to log file for persistent logging (e.g., "/app/logs/hy
 `author_diversity_enforced` respects `max_boosts_per_author_per_day` when enabled. When enabled, the bot enforces a 24-hour rolling window where the same author cannot be boosted more than once within any 24-hour period, preventing the same authors from dominating the feed.
 `max_boosts_per_run` limits how many posts get boosted in each run.
 `max_boosts_per_author_per_day` prevents the same author from being boosted multiple times within a 24-hour rolling window. This ensures diverse content and prevents any single author from dominating your timeline.
+
+### Language Filtering
+
+The bot can filter posts based on language to ensure you only see content in languages you understand:
+
+```yaml
+languages_allowlist:
+  - en  # English only
+
+# Optional: Choose language detection method
+use_mastodon_language_detection: false  # Default: use langdetect for content-based detection
+# Set to true to trust Mastodon's language field (faster but less accurate)
+```
+
+**How it works:**
+- When `languages_allowlist` is configured, only posts in the specified languages will be boosted
+- **By default (`use_mastodon_language_detection: false`)**, the bot detects language from post content using the `langdetect` library to verify the actual language, ignoring what Mastodon reports
+  - Mastodon's language detection can be incorrect, so analyzing actual content is more reliable
+  - Content is analyzed after removing HTML tags, URLs, mentions, and hashtags
+  - Very short posts (less than 10 characters) that can't be reliably detected are skipped
+- **Alternatively (`use_mastodon_language_detection: true`)**, the bot trusts Mastodon's `language` field
+  - Faster but less accurate, as Mastodon can misidentify languages
+  - Recommended only if you trust your instance's language detection or need better performance
+- Posts with undetectable or non-allowed languages are skipped
+- Leave the list empty (`languages_allowlist: []`) to disable language filtering
+
+**Language Detection:**
+- Detection results are logged when `debug_decisions: true` is enabled
+  - With `use_mastodon_language_detection: false`: Shows both detected and Mastodon-reported languages for comparison
+  - With `use_mastodon_language_detection: true`: Shows Mastodon's reported language
+
 
 ### Spam Detection
 
@@ -236,6 +266,7 @@ DECISION: BOOST - Status passes all checks
 - Limit boosts per instance per run and for any single author per day (using a 24-hour rolling window)
 - Skip reposts and filter posts without media or missing content warnings
 - Skip posts with too few reblogs or favourites
+- **Language filtering with automatic detection**: Filter posts by language using Mastodon metadata or automatic content-based detection
 - Prioritize posts containing weighted hashtags
 - Read timestamps whether they're strings or Python datetimes
 - Default 15-minute interval for frequent, smaller boost cycles
