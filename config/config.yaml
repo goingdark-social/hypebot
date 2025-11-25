@@ -16,8 +16,10 @@ fields:
 subscribed_instances:
   infosec.exchange:
     limit: 5
+  toot.community
+    limit: 5
   mastodon.social:
-    limit: 4
+    limit: 2
   mas.to:
     limit: 5
   fosstodon.org:
@@ -71,6 +73,8 @@ hashtag_scores:
   cybersecurity: 10
   kubernetes: 15
   docker: 15
+  foss: 15
+  chatcontrol: 15
 
 # Debug logging configuration
 debug_decisions: true
