@@ -16,7 +16,7 @@ fields:
 subscribed_instances:
   infosec.exchange:
     limit: 5
-  toot.community
+  toot.community:
     limit: 5
   mastodon.social:
     limit: 2
