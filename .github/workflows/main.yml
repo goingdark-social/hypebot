@@ -17,9 +17,27 @@ env:
   IMAGE_NAME: ${{ github.repository_owner }}/hypebot
 
 jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Shai-Hulud Security Scan
+        uses: gensecaihq/Shai-Hulud-2.0-Detector@v2
+        with:
+          fail-on-critical: true
+          fail-on-high: false
+          fail-on-any: false
+          scan-lockfiles: true
+          scan-node-modules: false
+          output-format: text
+          working-directory: '.'
+
   test:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    needs: security-scan
     steps:
       - name: Checkout
         uses: actions/checkout@v5
