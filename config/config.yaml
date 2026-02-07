@@ -76,6 +76,22 @@ hashtag_scores:
   foss: 15
   chatcontrol: 15
 
+# Local timeline configuration
+local_timeline_enabled: true
+local_timeline_fetch_limit: 20
+local_timeline_boost_limit: 4
+local_timeline_min_engagement: 1
+local_post_bonus: 1.5
+
+# Quality controls
+hashtag_diversity_enforced: true
+age_decay_enabled: true
+age_decay_half_life_hours: 24
+min_score_threshold: 4
+spam_emoji_penalty: 0.5
+spam_emoji_threshold: 2
+spam_link_penalty: 0.3
+
 # Debug logging configuration
 debug_decisions: true
 log_level: "DEBUG"

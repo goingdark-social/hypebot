@@ -50,9 +50,11 @@ class DummyConfig:
         # Local timeline configuration
         self.local_timeline_enabled = True
         self.local_timeline_fetch_limit = 20
-        self.local_timeline_boost_limit = 2
+        self.local_timeline_boost_limit = (
+            2  # Test with original limit, can be overridden
+        )
         self.local_timeline_min_engagement = 1
-
+        self.local_post_bonus = 1.5  # New local post bonus multiplier
 
 
 def status_data(i, u):
@@ -142,11 +144,11 @@ def test_author_24hour_enforcement(tmp_path):
     cfg = DummyConfig(str(tmp_path / "state.json"))
     cfg.author_diversity_enforced = True
     hype = Hype(cfg)
-    
+
     # Boost a status from author a@b
     first = status_data("1", "https://a/1")
     hype._remember_status(first)
-    
+
     # Try to boost another status from same author (should be blocked)
     second = status_data("2", "https://a/2")
     assert hype._seen_status(second), "Author should be blocked within 24 hours"
@@ -157,11 +159,11 @@ def test_author_24hour_enforcement_different_authors(tmp_path):
     cfg = DummyConfig(str(tmp_path / "state.json"))
     cfg.author_diversity_enforced = True
     hype = Hype(cfg)
-    
+
     # Boost a status from author a@b
     first = status_data("1", "https://a/1")
     hype._remember_status(first)
-    
+
     # Boost another status from different author (should be allowed)
     second = {
         "id": "2",
@@ -181,20 +183,22 @@ def test_author_24hour_enforcement_different_authors(tmp_path):
 def test_author_24hour_enforcement_expired(tmp_path):
     """Test that author can be boosted again after 24 hours"""
     import time
+
     cfg = DummyConfig(str(tmp_path / "state.json"))
     cfg.author_diversity_enforced = True
     hype = Hype(cfg)
-    
+
     # Boost a status from author a@b
     first = status_data("1", "https://a/1")
     hype._remember_status(first)
-    
+
     # Simulate 24 hours passing by manipulating the timestamp
     from datetime import datetime, timezone
+
     now = datetime.now(timezone.utc).timestamp()
     expired_timestamp = now - (24 * 60 * 60 + 1)  # 24 hours and 1 second ago
     hype.state["author_boost_timestamps"]["a@b"] = expired_timestamp
-    
+
     # Try to boost another status from same author (should be allowed after 24h)
     second = status_data("2", "https://a/2")
     assert not hype._seen_status(second), "Author should be allowed after 24 hours"
@@ -205,40 +209,43 @@ def test_author_24hour_enforcement_disabled(tmp_path):
     cfg = DummyConfig(str(tmp_path / "state.json"))
     cfg.author_diversity_enforced = False
     hype = Hype(cfg)
-    
+
     # Boost a status from author a@b
     first = status_data("1", "https://a/1")
     hype._remember_status(first)
-    
+
     # Try to boost another status from same author (should be allowed when disabled)
     second = status_data("2", "https://a/2")
-    assert not hype._seen_status(second), "Author should be allowed when enforcement is disabled"
+    assert not hype._seen_status(second), (
+        "Author should be allowed when enforcement is disabled"
+    )
 
 
 def test_author_timestamp_cleanup(tmp_path):
     """Test that old author timestamps are cleaned up during save"""
     from datetime import datetime, timezone
+
     cfg = DummyConfig(str(tmp_path / "state.json"))
     cfg.author_diversity_enforced = True
     hype = Hype(cfg)
-    
+
     now = datetime.now(timezone.utc).timestamp()
-    
+
     # Add some timestamps - one old, one recent
     hype.state["author_boost_timestamps"] = {
         "old@author": now - (25 * 60 * 60),  # 25 hours ago (should be cleaned)
         "recent@author": now - (1 * 60 * 60),  # 1 hour ago (should be kept)
     }
-    
+
     # Save state (this should clean up old timestamps)
     hype._save_state()
-    
+
     # Reload state
     import json
+
     with open(str(tmp_path / "state.json"), "r") as f:
         saved_state = json.load(f)
-    
+
     # Old timestamp should be removed, recent should remain
     assert "old@author" not in saved_state["author_boost_timestamps"]
     assert "recent@author" in saved_state["author_boost_timestamps"]
-
