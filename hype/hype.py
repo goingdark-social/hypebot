@@ -19,56 +19,58 @@ from .config import Config
 class Hype:
     def __init__(self, config: Config) -> None:
         self.config = config
-        
+
         # Set up logging with file handler if logfile_path is specified
         handlers = []
-        
+
         # Console handler
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(
             logging.Formatter(
-                "%(asctime)s %(levelname)-8s %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S"
+                "%(asctime)s %(levelname)-8s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
             )
         )
         handlers.append(console_handler)
-        
+
         # File handler if logfile_path is configured
         if self.config.logfile_path:
             try:
                 # Ensure the directory exists
                 import os
+
                 logfile_dir = os.path.dirname(self.config.logfile_path)
                 if logfile_dir and not os.path.exists(logfile_dir):
                     os.makedirs(logfile_dir, exist_ok=True)
-                    
+
                 file_handler = logging.FileHandler(self.config.logfile_path)
                 file_handler.setFormatter(
                     logging.Formatter(
                         "%(asctime)s %(levelname)-8s %(name)s - %(message)s",
-                        datefmt="%Y-%m-%d %H:%M:%S"
+                        datefmt="%Y-%m-%d %H:%M:%S",
                     )
                 )
                 handlers.append(file_handler)
             except Exception as e:
-                print(f"Warning: Could not set up log file {self.config.logfile_path}: {e}")
-        
+                print(
+                    f"Warning: Could not set up log file {self.config.logfile_path}: {e}"
+                )
+
         # Configure logging
         logging.basicConfig(
             handlers=handlers,
             level=logging.getLevelName(self.config.log_level),
-            force=True  # Override any existing logging configuration
+            force=True,  # Override any existing logging configuration
         )
-        
+
         self.log = logging.getLogger("hype")
-        
+
         # Set up debug logger for detailed decision tracing
         self.debug_log = logging.getLogger("hype.decisions")
         if self.config.debug_decisions:
             self.debug_log.setLevel(logging.DEBUG)
         else:
             self.debug_log.setLevel(logging.INFO)
-            
+
         self.state = self._load_state()
         self._seen = deque(
             self.state.get("seen_status_ids", []),
@@ -128,7 +130,9 @@ class Hype:
         cutoff = now - (24 * 60 * 60)  # 24 hours ago
         self.state["author_boost_timestamps"] = {
             author: timestamp
-            for author, timestamp in self.state.get("author_boost_timestamps", {}).items()
+            for author, timestamp in self.state.get(
+                "author_boost_timestamps", {}
+            ).items()
             if timestamp > cutoff
         }
         try:
@@ -173,7 +177,7 @@ class Hype:
         """Check if hashtag diversity limit is hit for any hashtag in the status."""
         if not self.config.hashtag_diversity_enforced:
             return False
-            
+
         hashtags = status.get("tags", [])
         for tag in hashtags:
             tag_name = tag.get("name", "").lower()
@@ -187,12 +191,12 @@ class Hype:
         sid = status.get("id", "unknown")
         url = status.get("url") or status.get("uri")
         author = status.get("account", {}).get("acct", "unknown")
-        
+
         # Check various conditions for seen status
         sid_seen = sid in self._seen
         url_seen = url in self._seen if url else False
         already_reblogged = status.get("reblogged", False)
-        
+
         # Check if author was boosted within the last 24 hours
         author_limit_hit = False
         if self.config.author_diversity_enforced:
@@ -202,11 +206,17 @@ class Hype:
                 now = datetime.now(timezone.utc).timestamp()
                 hours_since_boost = (now - last_boost_time) / 3600
                 author_limit_hit = hours_since_boost < 24
-        
+
         hashtag_limit_hit = self._hashtag_diversity_hit(status)
-        
-        is_seen = sid_seen or url_seen or already_reblogged or author_limit_hit or hashtag_limit_hit
-        
+
+        is_seen = (
+            sid_seen
+            or url_seen
+            or already_reblogged
+            or author_limit_hit
+            or hashtag_limit_hit
+        )
+
         # Debug logging for seen status decision
         if self.config.debug_decisions:
             sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
@@ -221,16 +231,22 @@ class Hype:
                     last_boost_time = author_boost_timestamps[author]
                     now = datetime.now(timezone.utc).timestamp()
                     hours_since_boost = (now - last_boost_time) / 3600
-                    self.debug_log.debug(f"  Hours since last boost: {hours_since_boost:.2f}")
+                    self.debug_log.debug(
+                        f"  Hours since last boost: {hours_since_boost:.2f}"
+                    )
                 else:
                     self.debug_log.debug(f"  Author never boosted before")
                 self.debug_log.debug(f"  Author limit hit: {author_limit_hit}")
             if self.config.hashtag_diversity_enforced:
-                hashtags = [tag.get("name", "").lower() for tag in status.get("tags", [])]
+                hashtags = [
+                    tag.get("name", "").lower() for tag in status.get("tags", [])
+                ]
                 self.debug_log.debug(f"  Hashtags: {hashtags}")
-                self.debug_log.debug(f"  Hashtags boosted this run: {self._hashtags_boosted_this_run}")
+                self.debug_log.debug(
+                    f"  Hashtags boosted this run: {self._hashtags_boosted_this_run}"
+                )
                 self.debug_log.debug(f"  Hashtag limit hit: {hashtag_limit_hit}")
-        
+
         return is_seen
 
     def _remember_status(self, status: dict):
@@ -240,17 +256,17 @@ class Hype:
         self._seen.append(sid)
         if url:
             self._seen.append(url)
-        
+
         # Track author for per-day statistics (kept for backward compatibility)
         self._boosted_today[author] = self._boosted_today.get(author, 0) + 1
         self.state["authors_boosted_today"] = self._boosted_today
-        
+
         # Track author boost timestamp for 24-hour enforcement
         now = datetime.now(timezone.utc).timestamp()
         if "author_boost_timestamps" not in self.state:
             self.state["author_boost_timestamps"] = {}
         self.state["author_boost_timestamps"][author] = now
-        
+
         # Track hashtags for diversity enforcement in current run
         if self.config.hashtag_diversity_enforced:
             hashtags = status.get("tags", [])
@@ -268,24 +284,24 @@ class Hype:
             content = status.get("content", "") or ""
             if not content.strip():
                 return ""
-            
+
             # Remove HTML tags and decode HTML entities
-            clean_content = html.unescape(re.sub(r'<[^>]+>', '', content))
-            
+            clean_content = html.unescape(re.sub(r"<[^>]+>", "", content))
+
             # Remove URLs to avoid language detection from links
-            clean_content = re.sub(r'https?://\S+', '', clean_content)
-            
+            clean_content = re.sub(r"https?://\S+", "", clean_content)
+
             # Remove mentions and hashtags as they can interfere with detection
-            clean_content = re.sub(r'@\S+', '', clean_content)
-            clean_content = re.sub(r'#\S+', '', clean_content)
-            
+            clean_content = re.sub(r"@\S+", "", clean_content)
+            clean_content = re.sub(r"#\S+", "", clean_content)
+
             # Strip whitespace
             clean_content = clean_content.strip()
-            
+
             # Need at least some text to detect language reliably
             if len(clean_content) < 10:
                 return ""
-            
+
             # Detect language
             detected_lang = detect(clean_content)
             return detected_lang.lower()
@@ -300,20 +316,18 @@ class Hype:
 
     def _should_skip_status(self, status: dict) -> bool:
         sid = status.get("id", "unknown")
-        
+
         # Check media requirement
         has_media = bool(status.get("media_attachments"))
         skip_no_media = self.config.require_media and not has_media
-        
+
         # Check sensitive content without content warning
         is_sensitive = status.get("sensitive", False)
         spoiler_text = (status.get("spoiler_text") or "").strip()
         skip_sensitive = (
-            self.config.skip_sensitive_without_cw
-            and is_sensitive
-            and not spoiler_text
+            self.config.skip_sensitive_without_cw and is_sensitive and not spoiler_text
         )
-        
+
         # Check language allowlist
         lang = ""
         if self.config.languages_allowlist:
@@ -322,7 +336,9 @@ class Hype:
                 lang = (status.get("language") or "").lower()
                 if self.config.debug_decisions:
                     sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
-                    self.debug_log.debug(f"STATUS {sid_display} | Using Mastodon's language: '{lang}'")
+                    self.debug_log.debug(
+                        f"STATUS {sid_display} | Using Mastodon's language: '{lang}'"
+                    )
             else:
                 # Always detect language from content (default, more reliable)
                 lang = self._detect_language_from_content(status)
@@ -330,15 +346,19 @@ class Hype:
                     sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
                     mastodon_lang = (status.get("language") or "").lower()
                     if lang:
-                        self.debug_log.debug(f"STATUS {sid_display} | Language detected from content: '{lang}' (Mastodon reported: '{mastodon_lang}')")
+                        self.debug_log.debug(
+                            f"STATUS {sid_display} | Language detected from content: '{lang}' (Mastodon reported: '{mastodon_lang}')"
+                        )
                     else:
-                        self.debug_log.debug(f"STATUS {sid_display} | Language detection failed (Mastodon reported: '{mastodon_lang}')")
-        
+                        self.debug_log.debug(
+                            f"STATUS {sid_display} | Language detection failed (Mastodon reported: '{mastodon_lang}')"
+                        )
+
         skip_language = (
             self.config.languages_allowlist
             and lang not in self.config.languages_allowlist
         )
-        
+
         # Check minimum engagement
         reblogs_count = self._safe_count(status.get("reblogs_count", 0))
         favourites_count = self._safe_count(status.get("favourites_count", 0))
@@ -346,7 +366,7 @@ class Hype:
         skip_low_reblogs = reblogs_count < self.config.min_reblogs
         skip_low_favourites = favourites_count < self.config.min_favourites
         skip_low_replies = replies_count < self.config.min_replies
-        
+
         should_skip = (
             skip_no_media
             or skip_sensitive
@@ -355,24 +375,38 @@ class Hype:
             or skip_low_favourites
             or skip_low_replies
         )
-        
+
         # Debug logging for filtering decision
         if self.config.debug_decisions:
             sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
-            self.debug_log.debug(f"STATUS {sid_display} | FILTER CHECK: {'SKIP' if should_skip else 'KEEP'}")
-            self.debug_log.debug(f"  Media attachments: {len(status.get('media_attachments', []))}")
-            self.debug_log.debug(f"  Skip no media: {skip_no_media} (require_media: {self.config.require_media})")
+            self.debug_log.debug(
+                f"STATUS {sid_display} | FILTER CHECK: {'SKIP' if should_skip else 'KEEP'}"
+            )
+            self.debug_log.debug(
+                f"  Media attachments: {len(status.get('media_attachments', []))}"
+            )
+            self.debug_log.debug(
+                f"  Skip no media: {skip_no_media} (require_media: {self.config.require_media})"
+            )
             self.debug_log.debug(f"  Sensitive: {is_sensitive}, CW: '{spoiler_text}'")
             self.debug_log.debug(f"  Skip sensitive: {skip_sensitive}")
-            self.debug_log.debug(f"  Language: '{lang}', allowlist: {self.config.languages_allowlist}")
+            self.debug_log.debug(
+                f"  Language: '{lang}', allowlist: {self.config.languages_allowlist}"
+            )
             self.debug_log.debug(f"  Skip language: {skip_language}")
-            self.debug_log.debug(f"  Reblogs: {reblogs_count} (min: {self.config.min_reblogs})")
+            self.debug_log.debug(
+                f"  Reblogs: {reblogs_count} (min: {self.config.min_reblogs})"
+            )
             self.debug_log.debug(f"  Skip low reblogs: {skip_low_reblogs}")
-            self.debug_log.debug(f"  Favourites: {favourites_count} (min: {self.config.min_favourites})")
+            self.debug_log.debug(
+                f"  Favourites: {favourites_count} (min: {self.config.min_favourites})"
+            )
             self.debug_log.debug(f"  Skip low favourites: {skip_low_favourites}")
-            self.debug_log.debug(f"  Replies: {replies_count} (min: {self.config.min_replies})")
+            self.debug_log.debug(
+                f"  Replies: {replies_count} (min: {self.config.min_replies})"
+            )
             self.debug_log.debug(f"  Skip low replies: {skip_low_replies}")
-        
+
         return should_skip
 
     def _count_emojis(self, text: str) -> int:
@@ -382,17 +416,17 @@ class Hype:
         # Unicode emoji regex pattern - match individual emojis
         emoji_pattern = re.compile(
             "["
-            "\U0001F600-\U0001F64F"  # emoticons
-            "\U0001F300-\U0001F5FF"  # symbols & pictographs
-            "\U0001F680-\U0001F6FF"  # transport & map symbols
-            "\U0001F1E0-\U0001F1FF"  # flags (iOS)
-            "\U00002702-\U000027B0"  # dingbats
-            "\U000024C2-\U0001F251"
+            "\U0001f600-\U0001f64f"  # emoticons
+            "\U0001f300-\U0001f5ff"  # symbols & pictographs
+            "\U0001f680-\U0001f6ff"  # transport & map symbols
+            "\U0001f1e0-\U0001f1ff"  # flags (iOS)
+            "\U00002702-\U000027b0"  # dingbats
+            "\U000024c2-\U0001f251"
             "]"  # Remove the + to match individual emojis
         )
         matches = emoji_pattern.findall(text)
         return len(matches)
-    
+
     def _has_links(self, text: str) -> bool:
         """Check if text contains URLs."""
         if not text:
@@ -405,21 +439,21 @@ class Hype:
         """Calculate bonus score for hashtags related to configured keywords."""
         if not self.config.related_hashtags:
             return 0
-        
+
         # Get post content for analysis
         content = (status.get("content", "") or "").lower()
         # Also check hashtags themselves
         hashtags = status.get("tags", [])
         hashtag_names = [t.get("name", "").lower() for t in hashtags]
         all_text = content + " " + " ".join(hashtag_names)
-        
+
         related_score = 0
         for main_hashtag, related_terms in self.config.related_hashtags.items():
             main_hashtag_lower = main_hashtag.lower()
             # Check if the main hashtag is present
             if main_hashtag_lower in hashtag_names:
                 continue  # Already scored in regular hashtag scoring
-            
+
             # Check for related terms in content
             for related_term, multiplier in related_terms.items():
                 if related_term.lower() in all_text:
@@ -429,12 +463,12 @@ class Hype:
                         bonus = base_score * float(multiplier)
                         related_score += bonus
                         break  # Only apply one bonus per main hashtag
-        
+
         return related_score
 
     def score_status(self, status: dict) -> float:
         sid = status.get("id", "unknown")
-        
+
         # Calculate hashtag score (now supports negative values)
         hashtags = status.get("tags", [])
         tag_scores = [
@@ -442,79 +476,103 @@ class Hype:
             for t in hashtags
         ]
         tag_score = sum(tag_scores)
-        
+
         # Calculate related hashtag bonuses
         related_score = self._calculate_related_hashtag_score(status)
         tag_score += related_score
-        
+
         # Calculate engagement scores
         reblogs_count = self._safe_count(status.get("reblogs_count", 0))
         favourites_count = self._safe_count(status.get("favourites_count", 0))
         replies_count = self._safe_count(status.get("replies_count", 0))
         reblogs = math.log1p(reblogs_count) * 2
         favourites = math.log1p(favourites_count)
-        replies = math.log1p(replies_count) * 1.5  # Weight replies between favorites and reblogs
-        
+        replies = (
+            math.log1p(replies_count) * 1.5
+        )  # Weight replies between favorites and reblogs
+
         # Calculate media bonus
         has_media = bool(status.get("media_attachments"))
         media_bonus = self.config.prefer_media if has_media else 0
-        
+
         # Calculate spam penalties
         content = status.get("content", "") or ""
         spam_penalty = 0
-        
+
         # Emoji spam detection
         emoji_count = self._count_emojis(content)
         if emoji_count > self.config.spam_emoji_threshold:
             excess_emojis = emoji_count - self.config.spam_emoji_threshold
             spam_penalty += excess_emojis * self.config.spam_emoji_penalty
-        
+
         # Link penalty
         if self._has_links(content):
             spam_penalty += self.config.spam_link_penalty
-        
+
         # Calculate base score
-        base_score = tag_score + reblogs + favourites + replies + media_bonus - spam_penalty
-        
+        base_score = (
+            tag_score + reblogs + favourites + replies + media_bonus - spam_penalty
+        )
+
         # Apply age decay if enabled
         age_penalty = 0
         if self.config.age_decay_enabled:
             created_at = self._created_at(status)
             now = datetime.now(timezone.utc)
             age_hours = (now - created_at).total_seconds() / 3600
-            
+
             # Calculate decay factor using half-life formula: decay = 0.5^(age/half_life)
             if age_hours > 0 and self.config.age_decay_half_life_hours > 0:
-                decay_factor = 0.5 ** (age_hours / self.config.age_decay_half_life_hours)
+                decay_factor = 0.5 ** (
+                    age_hours / self.config.age_decay_half_life_hours
+                )
                 age_penalty = base_score * (1 - decay_factor)
-        
+
         total_score = base_score - age_penalty
-        
+
         # Debug logging for scoring decision
         if self.config.debug_decisions:
             sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
             self.debug_log.debug(f"STATUS {sid_display} | SCORING: {total_score:.2f}")
             self.debug_log.debug(f"  Hashtags: {[t.get('name', '') for t in hashtags]}")
             direct_tag_score = sum(tag_scores)
-            self.debug_log.debug(f"  Direct tag scores: {tag_scores} = {direct_tag_score}")
+            self.debug_log.debug(
+                f"  Direct tag scores: {tag_scores} = {direct_tag_score}"
+            )
             if related_score > 0:
                 self.debug_log.debug(f"  Related hashtag bonus: {related_score:.2f}")
             self.debug_log.debug(f"  Total tag score: {tag_score:.2f}")
             self.debug_log.debug(f"  Reblogs: {reblogs_count} -> {reblogs:.2f}")
-            self.debug_log.debug(f"  Favourites: {favourites_count} -> {favourites:.2f}")
+            self.debug_log.debug(
+                f"  Favourites: {favourites_count} -> {favourites:.2f}"
+            )
             self.debug_log.debug(f"  Replies: {replies_count} -> {replies:.2f}")
-            self.debug_log.debug(f"  Media bonus: {media_bonus} (has_media: {has_media})")
+            self.debug_log.debug(
+                f"  Media bonus: {media_bonus} (has_media: {has_media})"
+            )
             if spam_penalty > 0:
                 emoji_count = self._count_emojis(content)
                 has_links = self._has_links(content)
-                self.debug_log.debug(f"  Spam detection: {emoji_count} emojis, has_links: {has_links}, penalty: {spam_penalty:.2f}")
+                self.debug_log.debug(
+                    f"  Spam detection: {emoji_count} emojis, has_links: {has_links}, penalty: {spam_penalty:.2f}"
+                )
             if self.config.age_decay_enabled:
                 created_at = self._created_at(status)
-                age_hours = (datetime.now(timezone.utc) - created_at).total_seconds() / 3600
-                decay_factor = 0.5 ** (age_hours / self.config.age_decay_half_life_hours) if age_hours > 0 else 1
-                self.debug_log.debug(f"  Age: {age_hours:.2f}h, decay factor: {decay_factor:.3f}, penalty: {age_penalty:.2f}")
-            self.debug_log.debug(f"  Total: {base_score:.2f} - {age_penalty:.2f} = {total_score:.2f}")
-        
+                age_hours = (
+                    datetime.now(timezone.utc) - created_at
+                ).total_seconds() / 3600
+                decay_factor = (
+                    0.5 ** (age_hours / self.config.age_decay_half_life_hours)
+                    if age_hours > 0
+                    else 1
+                )
+                self.debug_log.debug(
+                    f"  Age: {age_hours:.2f}h, decay factor: {decay_factor:.3f}, penalty: {age_penalty:.2f}"
+                )
+            self.debug_log.debug(
+                f"  Total: {base_score:.2f} - {age_penalty:.2f} = {total_score:.2f}"
+            )
+
         return total_score
 
     def _normalize_scores(self, entries):
@@ -543,113 +601,157 @@ class Hype:
         """
         Fetch a status directly from a remote instance using GET /api/v1/statuses/:id.
         This validates the status exists and returns its canonical data.
-        
+
         Returns the status dict if successful, None otherwise.
         """
         try:
             # Create a client for the remote instance (unauthenticated, public endpoint)
             remote_client = self.init_client(instance_name)
             status = remote_client.status(status_id)
-            
+
             if self.config.debug_decisions:
-                sid_display = str(status_id)[:8] + "..." if len(str(status_id)) > 8 else str(status_id)
-                self.debug_log.debug(f"Remote fetch successful for {sid_display} from {instance_name}")
-            
+                sid_display = (
+                    str(status_id)[:8] + "..."
+                    if len(str(status_id)) > 8
+                    else str(status_id)
+                )
+                self.debug_log.debug(
+                    f"Remote fetch successful for {sid_display} from {instance_name}"
+                )
+
             return status
         except MastodonNotFoundError:
             if self.config.debug_decisions:
-                sid_display = str(status_id)[:8] + "..." if len(str(status_id)) > 8 else str(status_id)
-                self.debug_log.info(f"Remote status {sid_display} not found (404) on {instance_name}")
+                sid_display = (
+                    str(status_id)[:8] + "..."
+                    if len(str(status_id)) > 8
+                    else str(status_id)
+                )
+                self.debug_log.info(
+                    f"Remote status {sid_display} not found (404) on {instance_name}"
+                )
             return None
         except MastodonAPIError as e:
-            self.log.warning(f"{instance_name}: Remote fetch error for status {status_id} - {e}")
+            self.log.warning(
+                f"{instance_name}: Remote fetch error for status {status_id} - {e}"
+            )
             if self.config.debug_decisions:
                 self.debug_log.warning(f"Remote fetch API error: {e}")
             return None
         except Exception as e:
-            self.log.error(f"{instance_name}: Unexpected error fetching status {status_id} - {e}")
+            self.log.error(
+                f"{instance_name}: Unexpected error fetching status {status_id} - {e}"
+            )
             if self.config.debug_decisions:
                 self.debug_log.error(f"Remote fetch unexpected error: {e}")
             return None
 
-    def _attempt_reblog_with_federation_fallback(self, status: dict, instance_name: str) -> tuple:
+    def _attempt_reblog_with_federation_fallback(
+        self, status: dict, instance_name: str
+    ) -> tuple:
         """
         Attempt to reblog a status with federation fallback if needed.
-        
+
         Correct flow per platform requirements:
         1. Try direct reblog (works if status already in local DB)
         2. If reblog returns 404 and federation enabled, use search(resolve=True) to federate
         3. Retry reblog after successful federation
-        
+
         Returns (success: bool, status_for_tracking: dict or None)
         """
         status_id = status.get("id", "unknown")
-        sid_display = str(status_id)[:8] + "..." if len(str(status_id)) > 8 else str(status_id)
+        sid_display = (
+            str(status_id)[:8] + "..." if len(str(status_id)) > 8 else str(status_id)
+        )
         uri = status.get("uri") or status.get("url")
-        
+
         if not uri:
-            self.log.warning(f"{instance_name}: Cannot process status {status_id}, missing URI")
+            self.log.warning(
+                f"{instance_name}: Cannot process status {status_id}, missing URI"
+            )
             if self.config.debug_decisions:
                 self.debug_log.warning(f"DECISION: SKIP - Missing URI")
             return (False, None)
-        
+
         # Attempt 1: Try direct reblog (status may already be in local DB)
         try:
             self.client.status_reblog(status)
             if self.config.debug_decisions:
-                self.debug_log.debug(f"Direct reblog successful for {sid_display} (already in local DB)")
+                self.debug_log.debug(
+                    f"Direct reblog successful for {sid_display} (already in local DB)"
+                )
             return (True, status)
         except MastodonNotFoundError:
             # Status not in local DB (404 on reblog)
             if self.config.debug_decisions:
-                self.debug_log.debug(f"Status {sid_display} not in local DB (404 on reblog attempt)")
-            
+                self.debug_log.debug(
+                    f"Status {sid_display} not in local DB (404 on reblog attempt)"
+                )
+
             # Attempt 2: Try to federate via search with resolve=True
             if self.config.debug_decisions:
-                self.debug_log.debug(f"Attempting to federate {sid_display} via search(resolve=True)")
-            
+                self.debug_log.debug(
+                    f"Attempting to federate {sid_display} via search(resolve=True)"
+                )
+
             try:
                 result = self.client.search_v2(
                     uri, result_type="statuses", resolve=True
                 ).get("statuses", [])
-                
+
                 if not result:
                     # Search with resolve=True returned empty
-                    self.log.info(f"{instance_name}: skip, resolve-empty (status exists remotely but couldn't be federated)")
+                    self.log.info(
+                        f"{instance_name}: skip, resolve-empty (status exists remotely but couldn't be federated)"
+                    )
                     if self.config.debug_decisions:
-                        self.debug_log.info(f"DECISION: SKIP - remote-200-local-resolve-empty")
+                        self.debug_log.info(
+                            f"DECISION: SKIP - remote-200-local-resolve-empty"
+                        )
                     return (False, None)
-                
+
                 # Federation succeeded, retry reblog with federated status
                 federated_status = result[0]
                 if self.config.debug_decisions:
-                    self.debug_log.debug(f"Federation successful for {sid_display}, retrying reblog")
-                
+                    self.debug_log.debug(
+                        f"Federation successful for {sid_display}, retrying reblog"
+                    )
+
                 try:
                     self.client.status_reblog(federated_status)
                     if self.config.debug_decisions:
-                        self.debug_log.debug(f"Reblog after federation successful for {sid_display}")
+                        self.debug_log.debug(
+                            f"Reblog after federation successful for {sid_display}"
+                        )
                     return (True, federated_status)
                 except MastodonAPIError as reblog_error:
-                    self.log.warning(f"{instance_name}: Reblog failed after federation - {reblog_error}")
+                    self.log.warning(
+                        f"{instance_name}: Reblog failed after federation - {reblog_error}"
+                    )
                     if self.config.debug_decisions:
-                        self.debug_log.warning(f"DECISION: SKIP - reblog-404-after-resolve")
+                        self.debug_log.warning(
+                            f"DECISION: SKIP - reblog-404-after-resolve"
+                        )
                     return (False, None)
-                    
+
             except MastodonAPIError as e:
                 self.log.warning(f"{instance_name}: Federation attempt failed - {e}")
                 if self.config.debug_decisions:
                     if "401" in str(e) or "Unauthorized" in str(e):
                         self.debug_log.warning(f"DECISION: SKIP - token-scope-missing")
                     else:
-                        self.debug_log.warning(f"DECISION: SKIP - resolve-rejected ({e})")
+                        self.debug_log.warning(
+                            f"DECISION: SKIP - resolve-rejected ({e})"
+                        )
                 return (False, None)
             except Exception as e:
-                self.log.error(f"{instance_name}: Unexpected error during federation - {e}")
+                self.log.error(
+                    f"{instance_name}: Unexpected error during federation - {e}"
+                )
                 if self.config.debug_decisions:
                     self.debug_log.error(f"DECISION: SKIP - federation-error ({e})")
                 return (False, None)
-                
+
         except MastodonAPIError as e:
             self.log.warning(f"{instance_name}: Reblog attempt failed - {e}")
             if self.config.debug_decisions:
@@ -663,26 +765,37 @@ class Hype:
 
     def boost(self):
         self.log.info("Run boost")
-        
+
         # Reset hashtag tracking for current run
         self._hashtags_boosted_this_run = []
-        
+
         # Debug: Log boost cycle start
         if self.config.debug_decisions:
             self.debug_log.info("=== BOOST CYCLE START ===")
-            self.debug_log.info(f"Daily cap: {self.state.get('day_count', 0)}/{self.config.daily_public_cap}")
-            self.debug_log.info(f"Hourly cap: {self.state.get('hour_count', 0)}/{self.config.per_hour_public_cap}")
+            self.debug_log.info(
+                f"Daily cap: {self.state.get('day_count', 0)}/{self.config.daily_public_cap}"
+            )
+            self.debug_log.info(
+                f"Hourly cap: {self.state.get('hour_count', 0)}/{self.config.per_hour_public_cap}"
+            )
             self.debug_log.info(f"Max boosts per run: {self.config.max_boosts_per_run}")
             if self.config.hashtag_diversity_enforced:
-                self.debug_log.info(f"Hashtag diversity: max {self.config.max_boosts_per_hashtag_per_run} per hashtag per run")
-        
-        if not self.config.subscribed_instances and not self.config.local_timeline_enabled:
-            self.log.warning("No subscribed instances configured and local timeline is disabled.")
+                self.debug_log.info(
+                    f"Hashtag diversity: max {self.config.max_boosts_per_hashtag_per_run} per hashtag per run"
+                )
+
+        if (
+            not self.config.subscribed_instances
+            and not self.config.local_timeline_enabled
+        ):
+            self.log.warning(
+                "No subscribed instances configured and local timeline is disabled."
+            )
             return
         if not self._public_cap_available():
             self.log.info("Public cap reached. Skipping boosting this cycle.")
             return
-            
+
         # Debug: Log instance fetching
         if self.config.debug_decisions:
             instance_count = len(self.config.subscribed_instances)
@@ -690,51 +803,69 @@ class Hype:
                 instance_count += 1
             self.debug_log.info(f"Fetching from {instance_count} sources:")
             for inst in self.config.subscribed_instances:
-                fetch_lim = getattr(inst, 'fetch_limit', getattr(inst, 'limit', 20))
-                boost_lim = getattr(inst, 'boost_limit', getattr(inst, 'limit', 4))
-                self.debug_log.info(f"  - {inst.name} (fetch: {fetch_lim}, boost: {boost_lim})")
+                fetch_lim = getattr(inst, "fetch_limit", getattr(inst, "limit", 20))
+                boost_lim = getattr(inst, "boost_limit", getattr(inst, "limit", 4))
+                self.debug_log.info(
+                    f"  - {inst.name} (fetch: {fetch_lim}, boost: {boost_lim})"
+                )
             if self.config.local_timeline_enabled:
-                self.debug_log.info(f"  - local (fetch: {self.config.local_timeline_fetch_limit}, boost: {self.config.local_timeline_boost_limit})")
-                
+                self.debug_log.info(
+                    f"  - local (fetch: {self.config.local_timeline_fetch_limit}, boost: {self.config.local_timeline_boost_limit})"
+                )
+
         collected = []
         for inst in self.config.subscribed_instances:
             statuses = self._fetch_trending_statuses(inst)
             if self.config.debug_decisions:
-                self.debug_log.info(f"Instance {inst.name}: fetched {len(statuses)} statuses")
+                self.debug_log.info(
+                    f"Instance {inst.name}: fetched {len(statuses)} statuses"
+                )
             for entry in statuses:
                 s = entry["status"]
                 entry["score"] = self.score_status(s)
                 # Store the boost_limit for this instance with each entry
                 # Support backward compatibility: if no boost_limit, use limit (old behavior)
-                entry["instance_boost_limit"] = getattr(inst, 'boost_limit', getattr(inst, 'limit', 4))
+                entry["instance_boost_limit"] = getattr(
+                    inst, "boost_limit", getattr(inst, "limit", 4)
+                )
                 collected.append(entry)
-        
+
         # Fetch from local timeline if enabled
         if self.config.local_timeline_enabled:
             local_statuses = self._fetch_local_timeline_statuses()
             if self.config.debug_decisions:
-                self.debug_log.info(f"Instance local: fetched {len(local_statuses)} statuses")
+                self.debug_log.info(
+                    f"Instance local: fetched {len(local_statuses)} statuses"
+                )
             for entry in local_statuses:
                 s = entry["status"]
-                entry["score"] = self.score_status(s)
+                base_score = self.score_status(s)
+                entry["score"] = base_score * self.config.local_post_bonus
                 entry["instance_boost_limit"] = self.config.local_timeline_boost_limit
+                if self.config.debug_decisions and self.config.local_post_bonus != 1.0:
+                    self.debug_log.debug(
+                        f"LOCAL POST BONUS: {base_score:.2f} * {self.config.local_post_bonus}x = {entry['score']:.2f}"
+                    )
                 collected.append(entry)
-                
+
         # Debug: Log collection results
         if self.config.debug_decisions:
             self.debug_log.info(f"Total collected statuses: {len(collected)}")
-        
+
         # Apply quality threshold filtering on raw scores (before normalization)
         if self.config.min_score_threshold > 0:
             qualified_collected = [
-                entry for entry in collected 
+                entry
+                for entry in collected
                 if entry["score"] >= self.config.min_score_threshold
             ]
             if self.config.debug_decisions:
                 filtered_count = len(collected) - len(qualified_collected)
-                self.debug_log.info(f"Quality threshold filter (raw scores): {filtered_count} posts below {self.config.min_score_threshold} threshold")
+                self.debug_log.info(
+                    f"Quality threshold filter (raw scores): {filtered_count} posts below {self.config.min_score_threshold} threshold"
+                )
             collected = qualified_collected
-        
+
         # Check if we have any qualifying content
         if not collected:
             self.log.info("No posts meet the quality threshold. Skipping boost cycle.")
@@ -747,7 +878,7 @@ class Hype:
             key=lambda e: (e["score"], self._created_at(e["status"])),
             reverse=True,
         )
-        
+
         # Debug: Log top candidates after scoring and filtering
         if self.config.debug_decisions:
             self.debug_log.info("=== TOP CANDIDATES AFTER SCORING AND FILTERING ===")
@@ -757,68 +888,83 @@ class Hype:
                 author = status.get("account", {}).get("acct", "unknown")
                 score = entry["score"]
                 sid_display = sid[:8] + "..." if len(str(sid)) > 8 else str(sid)
-                self.debug_log.info(f"#{i+1}: {sid_display} by {author} - score: {score:.2f}")
-        
+                self.debug_log.info(
+                    f"#{i + 1}: {sid_display} by {author} - score: {score:.2f}"
+                )
+
         total = len(collected)
         boosted = 0
         instance_boost_counts = {}  # Track boosts per instance in this run
-        
+
         # Debug: Log boost decision loop start
         if self.config.debug_decisions:
             self.debug_log.info("=== BOOST DECISION LOOP ===")
-        
+
         for entry in collected:
-            if boosted >= self.config.max_boosts_per_run or not self._public_cap_available():
+            if (
+                boosted >= self.config.max_boosts_per_run
+                or not self._public_cap_available()
+            ):
                 if self.config.debug_decisions:
-                    reason = "max boosts reached" if boosted >= self.config.max_boosts_per_run else "public cap reached"
+                    reason = (
+                        "max boosts reached"
+                        if boosted >= self.config.max_boosts_per_run
+                        else "public cap reached"
+                    )
                     self.debug_log.info(f"Breaking early: {reason}")
                 break
-                
+
             trending = entry["status"]
             sid = trending.get("id", "unknown")
             instance_name = entry["instance"]
             instance_boost_limit = entry.get("instance_boost_limit", 4)
             score = entry["score"]
-            
+
             # Check per-instance boost limit
             instance_boosts = instance_boost_counts.get(instance_name, 0)
             if instance_boosts >= instance_boost_limit:
                 if self.config.debug_decisions:
-                    sid_display = str(sid)[:8] + "..." if len(str(sid)) > 8 else str(sid)
+                    sid_display = (
+                        str(sid)[:8] + "..." if len(str(sid)) > 8 else str(sid)
+                    )
                     self.debug_log.info(f"--- SKIPPING STATUS {sid_display} ---")
-                    self.debug_log.info(f"From: {instance_name}, Reason: Instance boost limit reached ({instance_boosts}/{instance_boost_limit})")
+                    self.debug_log.info(
+                        f"From: {instance_name}, Reason: Instance boost limit reached ({instance_boosts}/{instance_boost_limit})"
+                    )
                 continue
-            
+
             # Debug: Log candidate evaluation
             if self.config.debug_decisions:
                 sid_display = str(sid)[:8] + "..." if len(str(sid)) > 8 else str(sid)
                 self.debug_log.info(f"--- EVALUATING STATUS {sid_display} ---")
                 self.debug_log.info(f"From: {instance_name}, Score: {score:.2f}")
-            
+
             # Step 1: Apply filters on the trending status (before attempting any network calls)
             # Use the trending status directly - it's already a full status object from the remote
             status = trending
-            
+
             if self._seen_status(status):
                 self.log.info(f"{instance_name}: already boosted, skip")
                 if self.config.debug_decisions:
                     self.debug_log.info(f"DECISION: SKIP - Already seen/boosted")
                 continue
-                
+
             acct = status.get("account", {}).get("acct", "").split("@")
             server = acct[-1] if len(acct) > 1 else ""
             if server in self.config.filtered_instances:
                 self.log.info(f"{instance_name}: filtered instance {server}, skip")
                 if self.config.debug_decisions:
-                    self.debug_log.info(f"DECISION: SKIP - Instance {server} is filtered")
+                    self.debug_log.info(
+                        f"DECISION: SKIP - Instance {server} is filtered"
+                    )
                 continue
-                
+
             if self._should_skip_status(status):
                 self.log.info(f"{instance_name}: filtered by rules, skip")
                 if self.config.debug_decisions:
                     self.debug_log.info(f"DECISION: SKIP - Filtered by content rules")
                 continue
-            
+
             # Step 2: Attempt reblog with federation fallback
             if self.config.debug_decisions:
                 self.debug_log.info(f"DECISION: BOOST - Status passes all checks")
@@ -828,46 +974,62 @@ class Hype:
                     content_preview = content_preview[:97] + "..."
                 self.debug_log.info(f"  Author: {author}")
                 self.debug_log.info(f"  Content: {content_preview}")
-            
-            success, tracked_status = self._attempt_reblog_with_federation_fallback(status, instance_name)
+
+            success, tracked_status = self._attempt_reblog_with_federation_fallback(
+                status, instance_name
+            )
             if not success:
                 continue
-            
+
             # Use tracked_status for memory (may be different if federated)
             self._count_public_boost()
             self._remember_status(tracked_status if tracked_status else status)
             self._save_state()
             boosted += 1
-            instance_boost_counts[instance_name] = instance_boost_counts.get(instance_name, 0) + 1
+            instance_boost_counts[instance_name] = (
+                instance_boost_counts.get(instance_name, 0) + 1
+            )
             self.log.info(f"{instance_name}: boosted {boosted}/{total}")
-            
+
             if self.config.debug_decisions:
-                self.debug_log.info(f"Instance {instance_name}: {instance_boost_counts[instance_name]}/{instance_boost_limit} boosts from this instance")
-            
+                self.debug_log.info(
+                    f"Instance {instance_name}: {instance_boost_counts[instance_name]}/{instance_boost_limit} boosts from this instance"
+                )
+
             if self.state["hour_count"] >= self.config.per_hour_public_cap:
                 self.log.info("Per-hour public cap reached, stopping early.")
                 if self.config.debug_decisions:
                     self.debug_log.info("EARLY STOP: Per-hour cap reached")
                 break
-        
+
         # Debug: Log boost cycle summary
         if self.config.debug_decisions:
             self.debug_log.info("=== BOOST CYCLE COMPLETE ===")
             self.debug_log.info(f"Boosted: {boosted} posts")
-            self.debug_log.info(f"Daily count: {self.state.get('day_count', 0)}/{self.config.daily_public_cap}")
-            self.debug_log.info(f"Hourly count: {self.state.get('hour_count', 0)}/{self.config.per_hour_public_cap}")
+            self.debug_log.info(
+                f"Daily count: {self.state.get('day_count', 0)}/{self.config.daily_public_cap}"
+            )
+            self.debug_log.info(
+                f"Hourly count: {self.state.get('hour_count', 0)}/{self.config.per_hour_public_cap}"
+            )
 
     def _fetch_trending_statuses(self, instance):
         try:
             # Support both old-style instances (with limit) and new-style (with fetch_limit)
-            fetch_limit = getattr(instance, 'fetch_limit', getattr(instance, 'limit', 20))
+            fetch_limit = getattr(
+                instance, "fetch_limit", getattr(instance, "limit", 20)
+            )
             if self.config.debug_decisions:
-                self.debug_log.debug(f"Fetching trending statuses from {instance.name} (fetch_limit: {fetch_limit})")
+                self.debug_log.debug(
+                    f"Fetching trending statuses from {instance.name} (fetch_limit: {fetch_limit})"
+                )
             client = self.init_client(instance.name)
             statuses = client.trending_statuses(limit=fetch_limit)
             result = [{"instance": instance.name, "status": s} for s in statuses]
             if self.config.debug_decisions:
-                self.debug_log.debug(f"Successfully fetched {len(result)} statuses from {instance.name}")
+                self.debug_log.debug(
+                    f"Successfully fetched {len(result)} statuses from {instance.name}"
+                )
             return result
         except Exception as err:
             self.log.error(f"{instance.name}: error - {err}")
@@ -880,15 +1042,17 @@ class Hype:
         try:
             fetch_limit = self.config.local_timeline_fetch_limit
             if self.config.debug_decisions:
-                self.debug_log.debug(f"Fetching local timeline statuses (fetch_limit: {fetch_limit})")
-            
+                self.debug_log.debug(
+                    f"Fetching local timeline statuses (fetch_limit: {fetch_limit})"
+                )
+
             # Use the bot's own client to fetch local timeline
             statuses = self.client.timeline_local(limit=fetch_limit)
-            
+
             # Get current day for filtering
             now = datetime.now(timezone.utc)
             today_key = now.strftime("%Y-%m-%d")
-            
+
             result = []
             for status in statuses:
                 # Filter 1: Check if post is from today
@@ -896,27 +1060,28 @@ class Hype:
                 post_day = created_at.strftime("%Y-%m-%d")
                 if post_day != today_key:
                     continue
-                
+
                 # Filter 2: Check engagement (at least 1 boost, star, or comment)
                 reblogs = self._safe_count(status.get("reblogs_count", 0))
                 favourites = self._safe_count(status.get("favourites_count", 0))
                 replies = self._safe_count(status.get("replies_count", 0))
                 total_engagement = reblogs + favourites + replies
-                
+
                 if total_engagement < self.config.local_timeline_min_engagement:
                     continue
-                
+
                 result.append({"instance": "local", "status": status})
-            
+
             if self.config.debug_decisions:
-                self.debug_log.debug(f"Successfully fetched {len(result)} qualifying statuses from local timeline (from {len(statuses)} total)")
+                self.debug_log.debug(
+                    f"Successfully fetched {len(result)} qualifying statuses from local timeline (from {len(statuses)} total)"
+                )
             return result
         except Exception as err:
             self.log.error(f"local timeline: error - {err}")
             if self.config.debug_decisions:
                 self.debug_log.error(f"Failed to fetch from local timeline: {err}")
             return []
-
 
     def start(self):
         self.boost()
@@ -941,4 +1106,3 @@ class Hype:
             client_id=secret_path,
             ratelimit_method="pace",
         )
-
