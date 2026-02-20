@@ -13,6 +13,7 @@ profile_prefix: "I am boosting trending posts from:"
 fields:
   code: https://github.com/goingdark-social/hypebot
   operator: "@yourhandle@yourdomain.example"
+  feedback: "https://yourinstance.social/@yourbot"
 
 # Instance configuration with fetch/boost limits
 # fetch_limit: How many trending posts to fetch (max 20, API limit)
