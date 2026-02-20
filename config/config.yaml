@@ -2,7 +2,7 @@
 interval: 30
 
 # Text to add to the bot profile before the list of subscribed servers
-profile_prefix: "Official hypebot for goingdark.social, automatically boosting top trending posts from selected Mastodon instances:"
+profile_prefix: "Official hypebot for goingdark.social, automatically boosting top trending posts from selected Mastodon instances. Feedback: https://goingdark.social/@fanfare"
 
 # profile fields to fill in
 fields:
